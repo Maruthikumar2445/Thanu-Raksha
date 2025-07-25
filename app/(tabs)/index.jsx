@@ -765,7 +765,7 @@ const HomeScreen = () => {
         ]}
       >
         <LinearGradient
-          colors={['#4ECDC4', '#44A08D']} // New medical teal gradient
+          colors={['#4d4ae7ff', '#3b38d8ff']} // New medical teal gradient
           style={styles.headerGradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
