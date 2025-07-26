@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,11 +6,14 @@ import {
   StyleSheet,
   SafeAreaView,
   TouchableOpacity,
-  StatusBar
+  StatusBar,
+  Dimensions,
+  Platform,
+  RefreshControl
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage'; // Add this import
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 let LinearGradient;
 try {
@@ -23,8 +26,27 @@ try {
   );
 }
 
+const { width, height } = Dimensions.get('window');
+
 const DoctorDashboard = () => {
   const router = useRouter();
+  const [refreshing, setRefreshing] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [activeTab, setActiveTab] = useState('Dashboard');
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const onRefresh = React.useCallback(() => {
+    setRefreshing(true);
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1000);
+  }, []);
 
   const logout = async () => {
     try {
@@ -35,73 +57,260 @@ const DoctorDashboard = () => {
     }
   };
 
-  const doctorMenuItems = [
-    { id: 1, title: 'My Patients', icon: 'people', color: '#4ECDC4' },
-    { id: 2, title: 'Appointments', icon: 'calendar', color: '#44A08D' },
-    { id: 3, title: 'Medical Records', icon: 'document-text', color: '#3C9D7A' },
-    { id: 4, title: 'Prescription Pad', icon: 'clipboard', color: '#349068' },
-    { id: 5, title: 'Consultation Tools', icon: 'videocam', color: '#2C8356' },
-    { id: 6, title: 'Analytics', icon: 'analytics', color: '#247644' },
+  // Circular Quick Actions
+  const quickActions = [
+    { 
+      id: 1, 
+      title: 'Patients',
+      icon: 'people',
+      iconType: 'ionicons',
+      colors: ['#4ECDC4', '#44A08D'],
+      route: '/doctor/patients'
+    },
+    { 
+      id: 2, 
+      title: 'Calendar',
+      icon: 'calendar',
+      iconType: 'ionicons',
+      colors: ['#667eea', '#764ba2'],
+      route: '/doctor/appointments'
+    },
+    { 
+      id: 3, 
+      title: 'Video Call',
+      icon: 'videocam',
+      iconType: 'ionicons',
+      colors: ['#f093fb', '#f5576c'],
+      route: '/video-call'
+    },
+    { 
+      id: 4, 
+      title: 'Records',
+      icon: 'document-text',
+      iconType: 'ionicons',
+      colors: ['#4facfe', '#00f2fe'],
+      route: '/doctor/records'
+    }
   ];
+
+  const menuItems = [
+    { 
+      id: 1, 
+      title: 'Lab Reports', 
+      icon: 'flask',
+      iconType: 'ionicons',
+      color: '#667eea'
+    },
+    { 
+      id: 2, 
+      title: 'Prescriptions', 
+      icon: 'medical',
+      iconType: 'ionicons',
+      color: '#f093fb'
+    },
+    { 
+      id: 3, 
+      title: 'Analytics', 
+      icon: 'analytics',
+      iconType: 'ionicons',
+      color: '#4facfe'
+    },
+    { 
+      id: 4, 
+      title: 'Emergency', 
+      icon: 'warning',
+      iconType: 'ionicons',
+      color: '#ff6b6b'
+    }
+  ];
+
+  // Compact stats
+  const todayStats = [
+    { label: 'Patients', value: '24', icon: 'people', color: '#4ECDC4' },
+    { label: 'Appointments', value: '8', icon: 'calendar', color: '#667eea' },
+    { label: 'Revenue', value: '₹12K', icon: 'wallet', color: '#f093fb' },
+    { label: 'Rating', value: '4.9', icon: 'star', color: '#fbbf24' }
+  ];
+
+  const upcomingAppointments = [
+    { id: 1, name: 'Sarah Johnson', time: '10:30 AM', type: 'Consultation', avatar: 'S' },
+    { id: 2, name: 'Mike Chen', time: '11:15 AM', type: 'Follow-up', avatar: 'M' },
+    { id: 3, name: 'Emma Davis', time: '2:00 PM', type: 'Check-up', avatar: 'E' }
+  ];
+
+  // Bottom navigation tabs
+  const bottomTabs = [
+    { id: 'Dashboard', icon: 'grid', label: 'Dashboard' },
+    { id: 'Patients', icon: 'people', label: 'Patients' },
+    { id: 'Schedule', icon: 'calendar', label: 'Schedule' },
+    { id: 'Profile', icon: 'person', label: 'Profile' }
+  ];
+
+  const renderIcon = (iconName, iconType, size = 24, color = 'white') => {
+    switch (iconType) {
+      case 'material':
+        return <MaterialCommunityIcons name={iconName} size={size} color={color} />;
+      case 'fontawesome':
+        return <FontAwesome5 name={iconName} size={size} color={color} />;
+      default:
+        return <Ionicons name={iconName} size={size} color={color} />;
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#4ECDC4" />
       
-      {/* Header */}
+      {/* Compact Professional Header */}
       <LinearGradient
         colors={['#4ECDC4', '#44A08D']}
         style={styles.header}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
       >
         <View style={styles.headerContent}>
           <View style={styles.doctorInfo}>
             <View style={styles.avatarContainer}>
-              <Ionicons name="medical" size={30} color="white" />
+              <LinearGradient
+                colors={['rgba(255,255,255,0.3)', 'rgba(255,255,255,0.1)']}
+                style={styles.avatarGradient}
+              >
+                <FontAwesome5 name="user-md" size={20} color="white" />
+              </LinearGradient>
             </View>
             <View style={styles.doctorDetails}>
-              <Text style={styles.welcomeText}>Welcome back,</Text>
               <Text style={styles.doctorName}>Dr. John Smith</Text>
               <Text style={styles.specialization}>Cardiologist</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.logoutButton} onPress={logout}>
-            <Ionicons name="log-out-outline" size={24} color="white" />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity style={styles.headerButton}>
+              <Ionicons name="notifications-outline" size={18} color="white" />
+              <View style={styles.notificationBadge}>
+                <Text style={styles.badgeText}>3</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.headerButton} onPress={logout}>
+              <Ionicons name="log-out-outline" size={18} color="white" />
+            </TouchableOpacity>
+          </View>
         </View>
       </LinearGradient>
 
       {/* Content */}
-      <ScrollView style={styles.content}>
-        <Text style={styles.sectionTitle}>Doctor Dashboard</Text>
-        
-        <View style={styles.menuGrid}>
-          {doctorMenuItems.map((item) => (
-            <TouchableOpacity key={item.id} style={[styles.menuItem, { backgroundColor: item.color }]}>
-              <Ionicons name={item.icon} size={30} color="white" />
-              <Text style={styles.menuItemText}>{item.title}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Quick Stats */}
-        <View style={styles.statsContainer}>
-          <Text style={styles.statsTitle}>Today's Overview</Text>
-          <View style={styles.statsGrid}>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>12</Text>
-              <Text style={styles.statLabel}>Appointments</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>8</Text>
-              <Text style={styles.statLabel}>Consultations</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>4</Text>
-              <Text style={styles.statLabel}>New Patients</Text>
-            </View>
+      <ScrollView 
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {/* Circular Quick Actions */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <View style={styles.circularActionsGrid}>
+            {quickActions.map((action) => (
+              <TouchableOpacity key={action.id} style={styles.circularActionContainer}>
+                <LinearGradient
+                  colors={action.colors}
+                  style={styles.circularAction}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Ionicons name={action.icon} size={24} color="white" />
+                </LinearGradient>
+                <Text style={styles.circularActionText}>{action.title}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
+
+        {/* Compact Statistics Grid */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Today's Overview</Text>
+          <View style={styles.compactStatsGrid}>
+            {todayStats.map((stat, index) => (
+              <View key={index} style={styles.compactStatCard}>
+                <View style={[styles.statIcon, { backgroundColor: `${stat.color}20` }]}>
+                  <Ionicons name={stat.icon} size={16} color={stat.color} />
+                </View>
+                <Text style={styles.statValue}>{stat.value}</Text>
+                <Text style={styles.statLabel}>{stat.label}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Upcoming Appointments */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Upcoming Appointments</Text>
+            <TouchableOpacity>
+              <Text style={styles.viewAllText}>View All</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.appointmentsContainer}>
+            {upcomingAppointments.map((appointment) => (
+              <TouchableOpacity key={appointment.id} style={styles.appointmentCard}>
+                <View style={styles.appointmentInfo}>
+                  <View style={styles.patientAvatar}>
+                    <Text style={styles.avatarText}>{appointment.avatar}</Text>
+                  </View>
+                  <View style={styles.appointmentDetails}>
+                    <Text style={styles.patientName}>{appointment.name}</Text>
+                    <Text style={styles.appointmentType}>{appointment.type}</Text>
+                  </View>
+                </View>
+                <View style={styles.appointmentTime}>
+                  <Text style={styles.timeText}>{appointment.time}</Text>
+                  <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Medical Tools Grid */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Medical Tools</Text>
+          <View style={styles.toolsGrid}>
+            {menuItems.map((item) => (
+              <TouchableOpacity key={item.id} style={styles.toolCard}>
+                <View style={[styles.toolIcon, { backgroundColor: `${item.color}20` }]}>
+                  <Ionicons name={item.icon} size={20} color={item.color} />
+                </View>
+                <Text style={styles.toolTitle}>{item.title}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.bottomSpacing} />
       </ScrollView>
+
+      {/* Bottom Navigation */}
+      <View style={styles.bottomNavigation}>
+        {bottomTabs.map((tab) => (
+          <TouchableOpacity
+            key={tab.id}
+            style={[styles.bottomNavItem, activeTab === tab.id && styles.activeNavItem]}
+            onPress={() => setActiveTab(tab.id)}
+          >
+            <Ionicons 
+              name={tab.icon} 
+              size={20} 
+              color={activeTab === tab.id ? '#4ECDC4' : '#9CA3AF'} 
+            />
+            <Text style={[
+              styles.bottomNavText,
+              activeTab === tab.id && styles.activeNavText
+            ]}>
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
     </SafeAreaView>
   );
 };
@@ -109,14 +318,25 @@ const DoctorDashboard = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#f8fafc',
   },
+  
+  // Compact Header
   header: {
-    paddingTop: 40,
-    paddingBottom: 30,
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    paddingTop: Platform.OS === 'ios' ? 5 : 10,
+    paddingBottom: 15,
+    paddingHorizontal: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   headerContent: {
     flexDirection: 'row',
@@ -129,94 +349,319 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   avatarContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    marginRight: 12,
+  },
+  avatarGradient: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   doctorDetails: {
     flex: 1,
   },
-  welcomeText: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-  },
   doctorName: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 'bold',
     color: 'white',
   },
   specialization: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
   },
-  logoutButton: {
-    padding: 10,
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
   },
+  headerButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#ff4757',
+    borderRadius: 6,
+    width: 12,
+    height: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  badgeText: {
+    color: 'white',
+    fontSize: 8,
+    fontWeight: 'bold',
+  },
+
+  // Content
   content: {
     flex: 1,
-    paddingHorizontal: 20,
+  },
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 100, // Space for bottom navigation
+  },
+  section: {
+    marginTop: 20,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#1E293B',
-    marginVertical: 20,
+    color: '#1e293b',
+    marginBottom: 12,
+  },
+  viewAllText: {
+    fontSize: 12,
+    color: '#4ECDC4',
+    fontWeight: '600',
+  },
+
+  // Circular Quick Actions
+  circularActionsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 8,
+  },
+  circularActionContainer: {
+    alignItems: 'center',
+    width: 70,
+  },
+  circularAction: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
+  },
+  circularActionText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#1e293b',
     textAlign: 'center',
   },
-  menuGrid: {
+
+  // Compact Statistics
+  compactStatsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  compactStatCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+    width: (width - 48) / 4,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  statIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1e293b',
+    marginBottom: 2,
+  },
+  statLabel: {
+    fontSize: 9,
+    color: '#64748b',
+    textAlign: 'center',
+  },
+
+  // Appointments
+  appointmentsContainer: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  appointmentCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  appointmentInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  patientAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#4ECDC4',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  avatarText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  appointmentDetails: {
+    flex: 1,
+  },
+  patientName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 2,
+  },
+  appointmentType: {
+    fontSize: 12,
+    color: '#64748b',
+  },
+  appointmentTime: {
+    alignItems: 'flex-end',
+  },
+  timeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4ECDC4',
+  },
+
+  // Tools Grid
+  toolsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: 30,
   },
-  menuItem: {
-    width: '48%',
-    aspectRatio: 1,
-    borderRadius: 15,
+  toolCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    width: (width - 48) / 2,
+    marginBottom: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  toolIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 8,
   },
-  menuItemText: {
-    color: 'white',
-    fontSize: 14,
+  toolTitle: {
+    fontSize: 12,
     fontWeight: '600',
-    marginTop: 10,
+    color: '#1e293b',
     textAlign: 'center',
   },
-  statsContainer: {
-    backgroundColor: 'white',
-    borderRadius: 15,
-    padding: 20,
-    marginBottom: 20,
-  },
-  statsTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1E293B',
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-  statsGrid: {
+
+  // Bottom Navigation
+  bottomNavigation: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    backgroundColor: 'white',
+    paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 8,
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
-  statItem: {
+  bottomNavItem: {
+    flex: 1,
     alignItems: 'center',
+    paddingVertical: 4,
   },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
+  activeNavItem: {
+    // No additional styling needed
+  },
+  bottomNavText: {
+    fontSize: 10,
+    color: '#9CA3AF',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  activeNavText: {
     color: '#4ECDC4',
+    fontWeight: '600',
   },
-  statLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginTop: 5,
+
+  bottomSpacing: {
+    height: 20,
   },
 });
 
