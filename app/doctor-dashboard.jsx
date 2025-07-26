@@ -9,7 +9,10 @@ import {
   StatusBar,
   Dimensions,
   Platform,
-  RefreshControl
+  RefreshControl,
+  Modal,
+  TextInput,
+  FlatList
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -33,6 +36,8 @@ const DoctorDashboard = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeTab, setActiveTab] = useState('Dashboard');
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalType, setModalType] = useState('');
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -57,7 +62,30 @@ const DoctorDashboard = () => {
     }
   };
 
-  // Circular Quick Actions
+  // Sample data for different sections
+  const patientsData = [
+    { id: 1, name: 'Sarah Johnson', age: 28, condition: 'Hypertension', lastVisit: '2024-07-20', phone: '+1234567890', status: 'Active' },
+    { id: 2, name: 'Mike Chen', age: 35, condition: 'Diabetes', lastVisit: '2024-07-18', phone: '+1234567891', status: 'Follow-up' },
+    { id: 3, name: 'Emma Davis', age: 42, condition: 'Asthma', lastVisit: '2024-07-15', phone: '+1234567892', status: 'Active' },
+    { id: 4, name: 'John Smith', age: 56, condition: 'Heart Disease', lastVisit: '2024-07-10', phone: '+1234567893', status: 'Critical' }
+  ];
+
+  const recordsData = [
+    { id: 1, patientName: 'Sarah Johnson', type: 'Lab Report', date: '2024-07-20', status: 'Completed' },
+    { id: 2, patientName: 'Mike Chen', type: 'X-Ray', date: '2024-07-18', status: 'Pending' },
+    { id: 3, patientName: 'Emma Davis', type: 'Blood Test', date: '2024-07-15', status: 'Completed' },
+    { id: 4, patientName: 'John Smith', type: 'ECG', date: '2024-07-10', status: 'Review Required' }
+  ];
+
+  const scheduleData = [
+    { id: 1, time: '09:00 AM', patient: 'Sarah Johnson', type: 'Consultation', duration: '30 min' },
+    { id: 2, time: '10:30 AM', patient: 'Mike Chen', type: 'Follow-up', duration: '20 min' },
+    { id: 3, time: '11:15 AM', patient: 'Emma Davis', type: 'Check-up', duration: '25 min' },
+    { id: 4, time: '02:00 PM', patient: 'John Smith', type: 'Emergency', duration: '45 min' },
+    { id: 5, time: '03:30 PM', patient: 'Lisa Wilson', type: 'Consultation', duration: '30 min' }
+  ];
+
+  // Quick Actions with modal handling
   const quickActions = [
     { 
       id: 1, 
@@ -65,7 +93,7 @@ const DoctorDashboard = () => {
       icon: 'people',
       iconType: 'ionicons',
       colors: ['#4ECDC4', '#44A08D'],
-      route: '/doctor/patients'
+      action: () => openModal('patients')
     },
     { 
       id: 2, 
@@ -73,7 +101,7 @@ const DoctorDashboard = () => {
       icon: 'calendar',
       iconType: 'ionicons',
       colors: ['#667eea', '#764ba2'],
-      route: '/doctor/appointments'
+      action: () => setActiveTab('Schedule')
     },
     { 
       id: 3, 
@@ -81,7 +109,7 @@ const DoctorDashboard = () => {
       icon: 'videocam',
       iconType: 'ionicons',
       colors: ['#f093fb', '#f5576c'],
-      route: '/video-call'
+      action: () => router.push('/video-call')
     },
     { 
       id: 4, 
@@ -89,42 +117,286 @@ const DoctorDashboard = () => {
       icon: 'document-text',
       iconType: 'ionicons',
       colors: ['#4facfe', '#00f2fe'],
-      route: '/doctor/records'
+      action: () => openModal('records')
     }
   ];
 
+  const openModal = (type) => {
+    setModalType(type);
+    setModalVisible(true);
+  };
+
+  const closeModal = () => {
+    setModalVisible(false);
+    setModalType('');
+  };
+
+  // Tab content handlers
+  const handleTabPress = (tabId) => {
+    setActiveTab(tabId);
+    if (tabId === 'Patients') {
+      openModal('patients');
+    }
+  };
+
+  // Render different content based on active tab
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'Dashboard':
+        return renderDashboardContent();
+      case 'Schedule':
+        return renderScheduleContent();
+      case 'Profile':
+        return renderProfileContent();
+      default:
+        return renderDashboardContent();
+    }
+  };
+
+  const renderDashboardContent = () => (
+    <>
+      {/* Circular Quick Actions */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        <View style={styles.circularActionsGrid}>
+          {quickActions.map((action) => (
+            <TouchableOpacity 
+              key={action.id} 
+              style={styles.circularActionContainer}
+              onPress={action.action}
+            >
+              <LinearGradient
+                colors={action.colors}
+                style={styles.circularAction}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Ionicons name={action.icon} size={24} color="white" />
+              </LinearGradient>
+              <Text style={styles.circularActionText}>{action.title}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {/* Compact Statistics Grid */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Today's Overview</Text>
+        <View style={styles.compactStatsGrid}>
+          {todayStats.map((stat, index) => (
+            <View key={index} style={styles.compactStatCard}>
+              <View style={[styles.statIcon, { backgroundColor: `${stat.color}20` }]}>
+                <Ionicons name={stat.icon} size={16} color={stat.color} />
+              </View>
+              <Text style={styles.statValue}>{stat.value}</Text>
+              <Text style={styles.statLabel}>{stat.label}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      {/* Upcoming Appointments */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Upcoming Appointments</Text>
+          <TouchableOpacity onPress={() => setActiveTab('Schedule')}>
+            <Text style={styles.viewAllText}>View All</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.appointmentsContainer}>
+          {upcomingAppointments.map((appointment) => (
+            <TouchableOpacity key={appointment.id} style={styles.appointmentCard}>
+              <View style={styles.appointmentInfo}>
+                <View style={styles.patientAvatar}>
+                  <Text style={styles.avatarText}>{appointment.avatar}</Text>
+                </View>
+                <View style={styles.appointmentDetails}>
+                  <Text style={styles.patientName}>{appointment.name}</Text>
+                  <Text style={styles.appointmentType}>{appointment.type}</Text>
+                </View>
+              </View>
+              <View style={styles.appointmentTime}>
+                <Text style={styles.timeText}>{appointment.time}</Text>
+                <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {/* Medical Tools Grid */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Medical Tools</Text>
+        <View style={styles.toolsGrid}>
+          {menuItems.map((item) => (
+            <TouchableOpacity key={item.id} style={styles.toolCard}>
+              <View style={[styles.toolIcon, { backgroundColor: `${item.color}20` }]}>
+                <Ionicons name={item.icon} size={20} color={item.color} />
+              </View>
+              <Text style={styles.toolTitle}>{item.title}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+    </>
+  );
+
+  const renderScheduleContent = () => (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Today's Schedule</Text>
+      <View style={styles.scheduleContainer}>
+        {scheduleData.map((appointment) => (
+          <View key={appointment.id} style={styles.scheduleCard}>
+            <View style={styles.scheduleTime}>
+              <Text style={styles.scheduleTimeText}>{appointment.time}</Text>
+              <Text style={styles.scheduleDuration}>{appointment.duration}</Text>
+            </View>
+            <View style={styles.scheduleDetails}>
+              <Text style={styles.schedulePatient}>{appointment.patient}</Text>
+              <Text style={styles.scheduleType}>{appointment.type}</Text>
+            </View>
+            <TouchableOpacity style={styles.scheduleAction}>
+              <Ionicons name="videocam" size={20} color="#4ECDC4" />
+            </TouchableOpacity>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+
+  const renderProfileContent = () => (
+    <View style={styles.section}>
+      <View style={styles.profileHeader}>
+        <View style={styles.profileAvatar}>
+          <FontAwesome5 name="user-md" size={40} color="#4ECDC4" />
+        </View>
+        <Text style={styles.profileName}>Dr. John Smith</Text>
+        <Text style={styles.profileSpecialty}>Cardiologist • MBBS, MD</Text>
+        <View style={styles.profileStats}>
+          <View style={styles.profileStatItem}>
+            <Text style={styles.profileStatValue}>156</Text>
+            <Text style={styles.profileStatLabel}>Patients</Text>
+          </View>
+          <View style={styles.profileStatItem}>
+            <Text style={styles.profileStatValue}>4.9</Text>
+            <Text style={styles.profileStatLabel}>Rating</Text>
+          </View>
+          <View style={styles.profileStatItem}>
+            <Text style={styles.profileStatValue}>8</Text>
+            <Text style={styles.profileStatLabel}>Years Exp</Text>
+          </View>
+        </View>
+      </View>
+      
+      <View style={styles.profileMenu}>
+        {[
+          { icon: 'person-circle', title: 'Edit Profile', color: '#4ECDC4' },
+          { icon: 'settings', title: 'Settings', color: '#667eea' },
+          { icon: 'notifications', title: 'Notifications', color: '#f093fb' },
+          { icon: 'help-circle', title: 'Help & Support', color: '#fbbf24' },
+          { icon: 'log-out', title: 'Logout', color: '#ff6b6b' }
+        ].map((item, index) => (
+          <TouchableOpacity key={index} style={styles.profileMenuItem} onPress={item.title === 'Logout' ? logout : undefined}>
+            <View style={[styles.profileMenuIcon, { backgroundColor: `${item.color}20` }]}>
+              <Ionicons name={item.icon} size={20} color={item.color} />
+            </View>
+            <Text style={styles.profileMenuText}>{item.title}</Text>
+            <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+
+  // Render modal content
+  const renderModalContent = () => {
+    if (modalType === 'patients') {
+      return (
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>My Patients</Text>
+            <TouchableOpacity onPress={closeModal}>
+              <Ionicons name="close" size={24} color="#64748b" />
+            </TouchableOpacity>
+          </View>
+          <FlatList
+            data={patientsData}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={({ item }) => (
+              <View style={styles.patientCard}>
+                <View style={styles.patientInfo}>
+                  <View style={styles.patientAvatar}>
+                    <Text style={styles.avatarText}>{item.name.charAt(0)}</Text>
+                  </View>
+                  <View style={styles.patientDetails}>
+                    <Text style={styles.patientName}>{item.name}</Text>
+                    <Text style={styles.patientCondition}>{item.condition} • Age {item.age}</Text>
+                    <Text style={styles.patientLastVisit}>Last visit: {item.lastVisit}</Text>
+                  </View>
+                </View>
+                <View style={styles.patientActions}>
+                  <TouchableOpacity style={styles.actionButton}>
+                    <Ionicons name="call" size={16} color="#4ECDC4" />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.actionButton}>
+                    <Ionicons name="videocam" size={16} color="#f093fb" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          />
+        </View>
+      );
+    }
+
+    if (modalType === 'records') {
+      return (
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Medical Records</Text>
+            <TouchableOpacity onPress={closeModal}>
+              <Ionicons name="close" size={24} color="#64748b" />
+            </TouchableOpacity>
+          </View>
+          <FlatList
+            data={recordsData}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={({ item }) => (
+              <View style={styles.recordCard}>
+                <View style={styles.recordInfo}>
+                  <Text style={styles.recordPatient}>{item.patientName}</Text>
+                  <Text style={styles.recordType}>{item.type}</Text>
+                  <Text style={styles.recordDate}>{item.date}</Text>
+                </View>
+                <View style={[styles.recordStatus, 
+                  { backgroundColor: item.status === 'Completed' ? '#10b98120' : 
+                    item.status === 'Pending' ? '#f59e0b20' : '#ef444420' }
+                ]}>
+                  <Text style={[styles.recordStatusText,
+                    { color: item.status === 'Completed' ? '#10b981' : 
+                      item.status === 'Pending' ? '#f59e0b' : '#ef4444' }
+                  ]}>
+                    {item.status}
+                  </Text>
+                </View>
+              </View>
+            )}
+          />
+        </View>
+      );
+    }
+
+    return null;
+  };
+
+  // Data arrays (keeping existing ones)
   const menuItems = [
-    { 
-      id: 1, 
-      title: 'Lab Reports', 
-      icon: 'flask',
-      iconType: 'ionicons',
-      color: '#667eea'
-    },
-    { 
-      id: 2, 
-      title: 'Prescriptions', 
-      icon: 'medical',
-      iconType: 'ionicons',
-      color: '#f093fb'
-    },
-    { 
-      id: 3, 
-      title: 'Analytics', 
-      icon: 'analytics',
-      iconType: 'ionicons',
-      color: '#4facfe'
-    },
-    { 
-      id: 4, 
-      title: 'Emergency', 
-      icon: 'warning',
-      iconType: 'ionicons',
-      color: '#ff6b6b'
-    }
+    { id: 1, title: 'Lab Reports', icon: 'flask', iconType: 'ionicons', color: '#667eea' },
+    { id: 2, title: 'Prescriptions', icon: 'medical', iconType: 'ionicons', color: '#f093fb' },
+    { id: 3, title: 'Analytics', icon: 'analytics', iconType: 'ionicons', color: '#4facfe' },
+    { id: 4, title: 'Emergency', icon: 'warning', iconType: 'ionicons', color: '#ff6b6b' }
   ];
 
-  // Compact stats
   const todayStats = [
     { label: 'Patients', value: '24', icon: 'people', color: '#4ECDC4' },
     { label: 'Appointments', value: '8', icon: 'calendar', color: '#667eea' },
@@ -138,24 +410,12 @@ const DoctorDashboard = () => {
     { id: 3, name: 'Emma Davis', time: '2:00 PM', type: 'Check-up', avatar: 'E' }
   ];
 
-  // Bottom navigation tabs
   const bottomTabs = [
     { id: 'Dashboard', icon: 'grid', label: 'Dashboard' },
     { id: 'Patients', icon: 'people', label: 'Patients' },
     { id: 'Schedule', icon: 'calendar', label: 'Schedule' },
     { id: 'Profile', icon: 'person', label: 'Profile' }
   ];
-
-  const renderIcon = (iconName, iconType, size = 24, color = 'white') => {
-    switch (iconType) {
-      case 'material':
-        return <MaterialCommunityIcons name={iconName} size={size} color={color} />;
-      case 'fontawesome':
-        return <FontAwesome5 name={iconName} size={size} color={color} />;
-      default:
-        return <Ionicons name={iconName} size={size} color={color} />;
-    }
-  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -206,88 +466,23 @@ const DoctorDashboard = () => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Circular Quick Actions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.circularActionsGrid}>
-            {quickActions.map((action) => (
-              <TouchableOpacity key={action.id} style={styles.circularActionContainer}>
-                <LinearGradient
-                  colors={action.colors}
-                  style={styles.circularAction}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <Ionicons name={action.icon} size={24} color="white" />
-                </LinearGradient>
-                <Text style={styles.circularActionText}>{action.title}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* Compact Statistics Grid */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Today's Overview</Text>
-          <View style={styles.compactStatsGrid}>
-            {todayStats.map((stat, index) => (
-              <View key={index} style={styles.compactStatCard}>
-                <View style={[styles.statIcon, { backgroundColor: `${stat.color}20` }]}>
-                  <Ionicons name={stat.icon} size={16} color={stat.color} />
-                </View>
-                <Text style={styles.statValue}>{stat.value}</Text>
-                <Text style={styles.statLabel}>{stat.label}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* Upcoming Appointments */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Upcoming Appointments</Text>
-            <TouchableOpacity>
-              <Text style={styles.viewAllText}>View All</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.appointmentsContainer}>
-            {upcomingAppointments.map((appointment) => (
-              <TouchableOpacity key={appointment.id} style={styles.appointmentCard}>
-                <View style={styles.appointmentInfo}>
-                  <View style={styles.patientAvatar}>
-                    <Text style={styles.avatarText}>{appointment.avatar}</Text>
-                  </View>
-                  <View style={styles.appointmentDetails}>
-                    <Text style={styles.patientName}>{appointment.name}</Text>
-                    <Text style={styles.appointmentType}>{appointment.type}</Text>
-                  </View>
-                </View>
-                <View style={styles.appointmentTime}>
-                  <Text style={styles.timeText}>{appointment.time}</Text>
-                  <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* Medical Tools Grid */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Medical Tools</Text>
-          <View style={styles.toolsGrid}>
-            {menuItems.map((item) => (
-              <TouchableOpacity key={item.id} style={styles.toolCard}>
-                <View style={[styles.toolIcon, { backgroundColor: `${item.color}20` }]}>
-                  <Ionicons name={item.icon} size={20} color={item.color} />
-                </View>
-                <Text style={styles.toolTitle}>{item.title}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
+        {renderTabContent()}
         <View style={styles.bottomSpacing} />
       </ScrollView>
+
+      {/* Modal for Patients and Records */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            {renderModalContent()}
+          </View>
+        </View>
+      </Modal>
 
       {/* Bottom Navigation */}
       <View style={styles.bottomNavigation}>
@@ -295,7 +490,7 @@ const DoctorDashboard = () => {
           <TouchableOpacity
             key={tab.id}
             style={[styles.bottomNavItem, activeTab === tab.id && styles.activeNavItem]}
-            onPress={() => setActiveTab(tab.id)}
+            onPress={() => handleTabPress(tab.id)}
           >
             <Ionicons 
               name={tab.icon} 
@@ -614,6 +809,281 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1e293b',
     textAlign: 'center',
+  },
+
+  // Schedule Content
+  scheduleContainer: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  scheduleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  scheduleTime: {
+    width: 80,
+    marginRight: 16,
+  },
+  scheduleTimeText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#1e293b',
+  },
+  scheduleDuration: {
+    fontSize: 12,
+    color: '#64748b',
+  },
+  scheduleDetails: {
+    flex: 1,
+  },
+  schedulePatient: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 2,
+  },
+  scheduleType: {
+    fontSize: 12,
+    color: '#64748b',
+  },
+  scheduleAction: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#4ECDC420',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Profile Content
+  profileHeader: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    marginBottom: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  profileAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#4ECDC420',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  profileName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1e293b',
+    marginBottom: 4,
+  },
+  profileSpecialty: {
+    fontSize: 14,
+    color: '#64748b',
+    marginBottom: 20,
+  },
+  profileStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+  },
+  profileStatItem: {
+    alignItems: 'center',
+  },
+  profileStatValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#4ECDC4',
+  },
+  profileStatLabel: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  profileMenu: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  profileMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  profileMenuIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  profileMenuText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e293b',
+    flex: 1,
+  },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: height * 0.8,
+  },
+  modalContent: {
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1e293b',
+  },
+
+  // Patient Modal
+  patientCard: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  patientInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  patientDetails: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  patientCondition: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  patientLastVisit: {
+    fontSize: 11,
+    color: '#94a3b8',
+    marginTop: 2,
+  },
+  patientActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'white',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+
+  // Records Modal
+  recordCard: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  recordInfo: {
+    flex: 1,
+  },
+  recordPatient: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  recordType: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  recordDate: {
+    fontSize: 11,
+    color: '#94a3b8',
+    marginTop: 2,
+  },
+  recordStatus: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  recordStatusText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
 
   // Bottom Navigation
