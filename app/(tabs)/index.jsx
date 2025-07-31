@@ -1,21 +1,21 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  View, 
-  Text, 
-  ScrollView, 
-  TouchableOpacity, 
-  StyleSheet, 
-  Dimensions,
-  SafeAreaView,
-  Platform,
-  TextInput,
-  Animated,
-  FlatList,
-  I18nManager,
-  Image
-} from 'react-native';
-import { Ionicons, MaterialIcons, FontAwesome5, AntDesign } from '@expo/vector-icons';
+import { AntDesign, Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Animated,
+  Dimensions,
+  FlatList,
+  Image,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
 
 // Conditional import for LinearGradient with fallback
 let LinearGradient;
@@ -52,6 +52,8 @@ const HomeScreen = () => {
   const [selectedLanguage, setSelectedLanguage] = useState('en');
   const [showAllHealthServices, setShowAllHealthServices] = useState(false);
   const [showAllDoctors, setShowAllDoctors] = useState(false);
+  const [userName, setUserName] = useState('User');
+  const [userPhoto, setUserPhoto] = useState(null);
   
   // Language cycling function
   const cycleLanguage = () => {
@@ -76,6 +78,23 @@ const HomeScreen = () => {
   const headerAnim = useRef(new Animated.Value(-100)).current;
 
   useEffect(() => {
+    // Load user session data
+    const loadUserData = async () => {
+      try {
+        const userSession = await AsyncStorage.getItem('userSession');
+        if (userSession) {
+          const userData = JSON.parse(userSession);
+          setUserName(userData.name || 'User');
+          setUserPhoto(userData.photoURL || null);
+        }
+      } catch (error) {
+        console.error('Error loading user data:', error);
+      }
+    };
+
+    loadUserData();
+
+    // Animation
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -774,7 +793,7 @@ const HomeScreen = () => {
           <View style={styles.headerContent}>
             <View style={styles.greetingSection}>
               <Text style={styles.greeting}>{t.greeting}</Text>
-              <Text style={styles.userName}>{t.userName}</Text>
+              <Text style={styles.userName}>{userName}</Text>
               <Text style={styles.subtitle}>{t.subtitle}</Text>
             </View>
             
@@ -880,13 +899,15 @@ const HomeScreen = () => {
                 renderItem={({ item }) => renderHealthServiceCard(item)}
                 keyExtractor={(item) => item.id}
                 horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.healthServicesContainer}
-                ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
+                showsHorizontalScrollIndicadtor={false}
+                contentContainerStyle={[styles.healthServicesContainer, { paddingLeft: 5, paddingRight: width * 0.06 + 20 }]} 
+                ItemSeparatorComponent={() => <View style={{ width: 32 }} />} 
                 decelerationRate="fast"
-                snapToInterval={width * 0.88 + 18}
-                snapToAlignment="center"
-                pagingEnabled={false}
+                snapToInterval={width * 0.88 + 32}
+                snapToAlignment="start"
+                pagingEnabled={true}
+                getItemLayout={(_, index) => ({ length: width * 0.88 + 32, offset: (width * 0.88 + 32) * index, index })}
+                style={{ width: width }}
               />
             ) : (
               // Grid View for All Services
@@ -1587,11 +1608,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   naturalHealthCard: {
-    width: width * 0.85, // Slightly wider
-    height: 240, // Taller for better image visibility
-    marginHorizontal: 6,
+    width: width * 0.88,
+    height: 240,
+    marginHorizontal: 0,
     borderRadius: 24,
     overflow: 'hidden',
+    backgroundColor: '#fff',
     ...Platform.select({
       ios: {
         shadowColor: '#000',

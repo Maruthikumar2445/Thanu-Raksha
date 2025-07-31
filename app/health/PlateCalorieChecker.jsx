@@ -36,6 +36,9 @@ const PlateCalorieChecker = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
 
+  // Track image errors for fallback
+  const [imageErrors, setImageErrors] = useState({});
+
   const foodSuggestions = [
     {
       name: 'Mixed Plate',
@@ -46,16 +49,6 @@ const PlateCalorieChecker = () => {
       name: 'Healthy Salad',
       image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=300&h=200&fit=crop',
       description: 'Fresh greens with toppings'
-    },
-    {
-      name: 'Breakfast Plate',
-      image: 'https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?w=300&h=200&fit=crop',
-      description: 'Eggs, toast, and fruits'
-    },
-    {
-      name: 'Pasta Dish',
-      image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=300&h=200&fit=crop',
-      description: 'Pasta with sauce and vegetables'
     }
   ];
 
@@ -134,8 +127,9 @@ const PlateCalorieChecker = () => {
 
   const pickImage = async (source) => {
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
+      // Request permissions
+      const mediaStatus = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (mediaStatus.status !== 'granted') {
         Alert.alert('Permission Denied', 'Sorry, we need camera roll permissions to make this work!');
         return;
       }
@@ -148,14 +142,14 @@ const PlateCalorieChecker = () => {
           return;
         }
         result = await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaType.Images,
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
           allowsEditing: true,
           aspect: [4, 3],
           quality: 0.8,
         });
       } else {
         result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaType.Images,
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
           allowsEditing: true,
           aspect: [4, 3],
           quality: 0.8,
@@ -171,18 +165,48 @@ const PlateCalorieChecker = () => {
     }
   };
 
-  const analyzeImage = () => {
+  const analyzeImage = async () => {
     if (!selectedImage) {
       Alert.alert('No Image', 'Please select an image to analyze.');
       return;
     }
-    
+
     setIsAnalyzing(true);
-    setTimeout(() => {
+    try {
+      // Prepare FormData
+      const formData = new FormData();
+      formData.append('file', {
+        uri: selectedImage,
+        name: 'food_image.jpg',
+        type: 'image/jpeg',
+      });
+
+      // Call backend
+      const response = await fetch('http://10.3.5.210:5006/analyze', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+
+      const data = await response.json();
+      if (data.success && data.calorie_analysis) {
+        setAnalysisResult(data.calorie_analysis);
+        setCurrentStep(3);
+      } else {
+        throw new Error(data.error || 'Analysis failed');
+      }
+    } catch (error) {
+      Alert.alert('Analysis Error', error.message || 'Failed to analyze image.');
+    } finally {
       setIsAnalyzing(false);
-      setAnalysisResult(mockAnalysisResult);
-      setCurrentStep(3);
-    }, 5000);
+    }
   };
 
   const resetAnalysis = () => {
@@ -282,17 +306,53 @@ const PlateCalorieChecker = () => {
 
             <View style={styles.examplesCard}>
               <Text style={styles.examplesTitle}>Example Food Types We Can Analyze</Text>
-              <View style={styles.examplesGrid}>
-                {foodSuggestions.map((food, index) => (
-                  <View key={index} style={styles.exampleItem}>
-                    <View style={styles.exampleImageContainer}>
-                      <Image source={{ uri: food.image }} style={styles.exampleImage} />
-                    </View>
-                    <Text style={styles.exampleName}>{food.name}</Text>
-                    <Text style={styles.exampleDescription}>{food.description}</Text>
+            <View style={styles.examplesGrid}>
+              {/* Render two columns per row strictly, fix pasta image and spacing */}
+              {Array.from({ length: Math.ceil(foodSuggestions.length / 2) }).map((_, rowIdx) => {
+                const firstIdx = rowIdx * 2;
+                const secondIdx = firstIdx + 1;
+                return (
+                  <View key={rowIdx} style={styles.examplesRow}>
+                    {/* First column */}
+                    {foodSuggestions[firstIdx] ? (
+                      <View style={styles.exampleItem}>
+                        <View style={styles.exampleImageContainer}>
+                        <Image
+                          source={
+                            imageErrors[firstIdx]
+                              ? { uri: 'https://images.unsplash.com/photo-1673442635965-34f1b36d8944?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D' } // fallback food icon
+                              : { uri: foodSuggestions[firstIdx].image }
+                          }
+                          style={styles.exampleImage}
+                          onError={() => setImageErrors(prev => ({ ...prev, [firstIdx]: true }))}
+                        />
+                        </View>
+                        <Text style={styles.exampleName}>{foodSuggestions[firstIdx].name}</Text>
+                        <Text style={styles.exampleDescription}>{foodSuggestions[firstIdx].description}</Text>
+                      </View>
+                    ) : <View style={[styles.exampleItem, { opacity: 0 }]} />}
+                    {/* Second column */}
+                    {foodSuggestions[secondIdx] ? (
+                      <View style={styles.exampleItem}>
+                        <View style={styles.exampleImageContainer}>
+                          <Image
+                            source={
+                              imageErrors[secondIdx]
+                                ? { uri: 'https://www.pngall.com/wp-content/uploads/4/Spaghetti-PNG-Image.png' }
+                                : { uri: foodSuggestions[secondIdx].image }
+                            }
+                            style={styles.exampleImage}
+                            onError={() => setImageErrors(prev => ({ ...prev, [secondIdx]: true }))}
+                          />
+                        </View>
+                        <Text style={styles.exampleName}>{foodSuggestions[secondIdx].name}</Text>
+                        <Text style={styles.exampleDescription}>{foodSuggestions[secondIdx].description}</Text>
+                      </View>
+                    ) : <View style={[styles.exampleItem, { opacity: 0 }]} />}
                   </View>
-                ))}
-              </View>
+                );
+              })}
+            </View>
             </View>
           </View>
         )}
@@ -349,148 +409,201 @@ const PlateCalorieChecker = () => {
               </LinearGradient>
             </View>
 
+            {/* Show uploaded image */}
+            {selectedImage && (
+              <View style={{ alignItems: 'center', marginBottom: 16 }}>
+                <Image source={{ uri: selectedImage }} style={{ width: 200, height: 140, borderRadius: 10 }} />
+              </View>
+            )}
+
             {/* Calorie Summary */}
             <View style={styles.calorieCard}>
               <View style={styles.calorieHeader}>
                 <View style={styles.calorieInfo}>
-                  <Text style={styles.totalCalories}>{analysisResult.totalCalories}</Text>
+                  <Text style={styles.totalCalories}>{analysisResult.totalCalories ?? analysisResult.total_calories ?? analysisResult.calorie_analysis?.total_calories ?? 'N/A'}</Text>
                   <Text style={styles.calorieUnit}>calories</Text>
                 </View>
-                <View style={styles.confidenceScore}>
-                  <Text style={styles.confidenceText}>{analysisResult.confidence}% confident</Text>
-                  <Text style={styles.servingText}>{analysisResult.servingSize}</Text>
-                </View>
-              </View>
-              
-              <View style={styles.healthScoreBadge}>
-                <Ionicons name="fitness" size={16} color="white" />
-                <Text style={styles.healthScoreText}>Health Score: {analysisResult.healthScore}/100</Text>
               </View>
             </View>
 
             {/* Detected Foods */}
             <View style={styles.foodsCard}>
               <Text style={styles.foodsTitle}>Detected Food Items</Text>
-              
-              {analysisResult.detectedFoods.map((food, index) => (
-                <View key={index} style={styles.foodItem}>
-                  <View style={styles.foodInfo}>
-                    <Text style={styles.foodName}>{food.name}</Text>
-                    <Text style={styles.foodQuantity}>{food.quantity}</Text>
-                  </View>
-                  <View style={styles.foodCalories}>
-                    <Text style={styles.foodCalorieValue}>{food.calories}</Text>
-                    <Text style={styles.foodCalorieUnit}>cal</Text>
-                  </View>
-                  <View style={styles.foodPercentage}>
-                    <Text style={styles.percentageText}>{food.percentage}%</Text>
-                  </View>
-                </View>
-              ))}
+              {Array.isArray(analysisResult.detectedFoods)
+                ? analysisResult.detectedFoods.map((food, index) => (
+                    <View key={index} style={styles.foodItem}>
+                      <View style={styles.foodInfo}>
+                        <Text style={styles.foodName}>{food.name}</Text>
+                        <Text style={styles.foodQuantity}>{food.quantity}</Text>
+                      </View>
+                      <View style={styles.foodCalories}>
+                        <Text style={styles.foodCalorieValue}>{food.calories}</Text>
+                        <Text style={styles.foodCalorieUnit}>cal</Text>
+                      </View>
+                    </View>
+                  ))
+                : Array.isArray(analysisResult.food_items)
+                ? analysisResult.food_items.map((food, index) => (
+                    <View key={index} style={styles.foodItem}>
+                      <View style={styles.foodInfo}>
+                        <Text style={styles.foodName}>{food.name}</Text>
+                        <Text style={styles.foodQuantity}>{food.portion}</Text>
+                      </View>
+                      <View style={styles.foodCalories}>
+                        <Text style={styles.foodCalorieValue}>{food.calories}</Text>
+                        <Text style={styles.foodCalorieUnit}>cal</Text>
+                      </View>
+                    </View>
+                  ))
+                : <Text style={{ color: '#718096', fontSize: 12 }}>No food items detected.</Text>
+              }
             </View>
 
             {/* Nutrition Breakdown */}
             <View style={styles.nutritionCard}>
               <Text style={styles.nutritionTitle}>Nutrition Breakdown</Text>
-              
-              <View style={styles.macroChart}>
-                <View style={styles.macroItem}>
-                  <View style={[styles.macroBar, { backgroundColor: '#FF8A50' }]}>
-                    <View style={[
-                      styles.macroFill, 
-                      { width: `${analysisResult.nutritionSummary.macroBreakdown.carbs}%`, backgroundColor: '#FF6B35' }
-                    ]} />
+              {analysisResult.nutritionSummary && analysisResult.nutritionSummary.macroBreakdown ? (
+                <View style={styles.macroChart}>
+                  <View style={styles.macroItem}>
+                    <View style={[styles.macroBar, { backgroundColor: '#FF8A50' }]}> 
+                      <View style={[ 
+                        styles.macroFill,  
+                        { width: `${analysisResult.nutritionSummary.macroBreakdown.carbs ?? 0}%`, backgroundColor: '#FF6B35' } 
+                      ]} />
+                    </View>
+                    <Text style={styles.macroLabel}>Carbs: {analysisResult.nutritionSummary.totalCarbs ?? 'N/A'}g</Text>
+                    <Text style={styles.macroPercent}>{analysisResult.nutritionSummary.macroBreakdown.carbs ?? 'N/A'}%</Text>
                   </View>
-                  <Text style={styles.macroLabel}>Carbs: {analysisResult.nutritionSummary.totalCarbs}g</Text>
-                  <Text style={styles.macroPercent}>{analysisResult.nutritionSummary.macroBreakdown.carbs}%</Text>
-                </View>
-
-                <View style={styles.macroItem}>
-                  <View style={[styles.macroBar, { backgroundColor: '#4299E1' }]}>
-                    <View style={[
-                      styles.macroFill, 
-                      { width: `${analysisResult.nutritionSummary.macroBreakdown.protein}%`, backgroundColor: '#3182CE' }
-                    ]} />
+                  <View style={styles.macroItem}>
+                    <View style={[styles.macroBar, { backgroundColor: '#4299E1' }]}> 
+                      <View style={[ 
+                        styles.macroFill,  
+                        { width: `${analysisResult.nutritionSummary.macroBreakdown.protein ?? 0}%`, backgroundColor: '#3182CE' } 
+                      ]} />
+                    </View>
+                    <Text style={styles.macroLabel}>Protein: {analysisResult.nutritionSummary.totalProtein ?? 'N/A'}g</Text>
+                    <Text style={styles.macroPercent}>{analysisResult.nutritionSummary.macroBreakdown.protein ?? 'N/A'}%</Text>
                   </View>
-                  <Text style={styles.macroLabel}>Protein: {analysisResult.nutritionSummary.totalProtein}g</Text>
-                  <Text style={styles.macroPercent}>{analysisResult.nutritionSummary.macroBreakdown.protein}%</Text>
-                </View>
-
-                <View style={styles.macroItem}>
-                  <View style={[styles.macroBar, { backgroundColor: '#48BB78' }]}>
-                    <View style={[
-                      styles.macroFill, 
-                      { width: `${analysisResult.nutritionSummary.macroBreakdown.fat}%`, backgroundColor: '#38A169' }
-                    ]} />
+                  <View style={styles.macroItem}>
+                    <View style={[styles.macroBar, { backgroundColor: '#48BB78' }]}> 
+                      <View style={[ 
+                        styles.macroFill,  
+                        { width: `${analysisResult.nutritionSummary.macroBreakdown.fat ?? 0}%`, backgroundColor: '#38A169' } 
+                      ]} />
+                    </View>
+                    <Text style={styles.macroLabel}>Fat: {analysisResult.nutritionSummary.totalFat ?? 'N/A'}g</Text>
+                    <Text style={styles.macroPercent}>{analysisResult.nutritionSummary.macroBreakdown.fat ?? 'N/A'}%</Text>
                   </View>
-                  <Text style={styles.macroLabel}>Fat: {analysisResult.nutritionSummary.totalFat}g</Text>
-                  <Text style={styles.macroPercent}>{analysisResult.nutritionSummary.macroBreakdown.fat}%</Text>
+                  <View style={styles.fiberInfo}>
+                    <Ionicons name="leaf" size={16} color="#48BB78" />
+                    <Text style={styles.fiberText}>Fiber: {analysisResult.nutritionSummary.totalFiber ?? 'N/A'}g</Text>
+                  </View>
                 </View>
-
-                <View style={styles.fiberInfo}>
-                  <Ionicons name="leaf" size={16} color="#48BB78" />
-                  <Text style={styles.fiberText}>Fiber: {analysisResult.nutritionSummary.totalFiber}g</Text>
+              ) : analysisResult.nutritional_info ? (
+                <View style={{ marginTop: 8 }}>
+                  <Text style={styles.macroLabel}>Carbs: {analysisResult.nutritional_info.carbs ?? 'N/A'}</Text>
+                  <Text style={styles.macroLabel}>Protein: {analysisResult.nutritional_info.protein ?? 'N/A'}</Text>
+                  <Text style={styles.macroLabel}>Fat: {analysisResult.nutritional_info.fat ?? 'N/A'}</Text>
                 </View>
-              </View>
+              ) : (
+                <Text style={{ color: '#718096', fontSize: 12 }}>Nutrition details not available.</Text>
+              )}
             </View>
+
+            {/* Analysis Description */}
+            {analysisResult.analysis || analysisResult.calorie_analysis?.analysis ? (
+              <View style={styles.nutritionCard}>
+                <Text style={styles.nutritionTitle}>AI Nutritionist's Notes</Text>
+                <Text style={{ color: '#2D3748', fontSize: 13 }}>{analysisResult.analysis ?? analysisResult.calorie_analysis?.analysis}</Text>
+              </View>
+            ) : null}
 
             {/* Activity Equivalent */}
             <View style={styles.activityCard}>
               <Text style={styles.activityTitle}>🔥 To Burn These Calories</Text>
-              
-              <View style={styles.activityList}>
-                {analysisResult.activityEquivalent.map((activity, index) => (
-                  <View key={index} style={styles.activityItem}>
-                    <View style={styles.activityIcon}>
-                      <Ionicons 
-                        name={activity.activity === 'Walking' ? 'walk' : 
-                              activity.activity === 'Cycling' ? 'bicycle' :
-                              activity.activity === 'Swimming' ? 'water' : 'fitness'} 
-                        size={20} 
-                        color="#FF8A50" 
-                      />
+              {Array.isArray(analysisResult.activityEquivalent) && analysisResult.activityEquivalent.length > 0 ? (
+                <View style={styles.activityList}>
+                  {analysisResult.activityEquivalent.map((activity, index) => (
+                    <View key={index} style={styles.activityItem}>
+                      <View style={styles.activityIcon}>
+                        <Ionicons 
+                          name={activity.activity === 'Walking' ? 'walk' : 
+                                activity.activity === 'Cycling' ? 'bicycle' :
+                                activity.activity === 'Swimming' ? 'water' : 'fitness'} 
+                          size={20} 
+                          color="#FF8A50" 
+                        />
+                      </View>
+                      <View style={styles.activityInfo}>
+                        <Text style={styles.activityName}>{activity.activity}</Text>
+                        <Text style={styles.activityDuration}>{activity.duration}</Text>
+                      </View>
                     </View>
-                    <View style={styles.activityInfo}>
-                      <Text style={styles.activityName}>{activity.activity}</Text>
-                      <Text style={styles.activityDuration}>{activity.duration}</Text>
+                  ))}
+                </View>
+              ) : Array.isArray(analysisResult.calorie_analysis?.activityEquivalent) && analysisResult.calorie_analysis.activityEquivalent.length > 0 ? (
+                <View style={styles.activityList}>
+                  {analysisResult.calorie_analysis.activityEquivalent.map((activity, index) => (
+                    <View key={index} style={styles.activityItem}>
+                      <View style={styles.activityIcon}>
+                        <Ionicons 
+                          name={activity.activity === 'Walking' ? 'walk' : 
+                                activity.activity === 'Cycling' ? 'bicycle' :
+                                activity.activity === 'Swimming' ? 'water' : 'fitness'} 
+                          size={20} 
+                          color="#FF8A50" 
+                        />
+                      </View>
+                      <View style={styles.activityInfo}>
+                        <Text style={styles.activityName}>{activity.activity}</Text>
+                        <Text style={styles.activityDuration}>{activity.duration}</Text>
+                      </View>
                     </View>
-                  </View>
-                ))}
-              </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={{ color: '#718096', fontSize: 12 }}>No activity equivalent data.</Text>
+              )}
             </View>
 
             {/* Recommendations */}
             <View style={styles.recommendationsCard}>
               <Text style={styles.recommendationsTitle}>💡 Health Recommendations</Text>
-              
-              {analysisResult.recommendations.map((rec, index) => (
-                <View key={index} style={styles.recommendationItem}>
-                  <Ionicons name="checkmark-circle" size={16} color="#48BB78" />
-                  <Text style={styles.recommendationText}>{rec}</Text>
-                </View>
-              ))}
+              {Array.isArray(analysisResult.recommendations) && analysisResult.recommendations.length > 0 ? (
+                analysisResult.recommendations.map((rec, index) => (
+                  <View key={index} style={styles.recommendationItem}>
+                    <Ionicons name="checkmark-circle" size={16} color="#48BB78" />
+                    <Text style={styles.recommendationText}>{rec}</Text>
+                  </View>
+                ))
+              ) : (
+                <Text style={{ color: '#718096', fontSize: 12 }}>No recommendations available.</Text>
+              )}
             </View>
 
             {/* Alternatives */}
             <View style={styles.alternativesCard}>
               <Text style={styles.alternativesTitle}>🔄 Healthier Alternatives</Text>
-              
-              {analysisResult.alternatives.map((alt, index) => (
-                <View key={index} style={styles.alternativeItem}>
-                  <View style={styles.alternativeInfo}>
-                    <Text style={styles.alternativeName}>{alt.name}</Text>
-                    <Text style={styles.alternativeBenefit}>{alt.benefit}</Text>
+              {Array.isArray(analysisResult.alternatives) && analysisResult.alternatives.length > 0 ? (
+                analysisResult.alternatives.map((alt, index) => (
+                  <View key={index} style={styles.alternativeItem}>
+                    <View style={styles.alternativeInfo}>
+                      <Text style={styles.alternativeName}>{alt.name}</Text>
+                      <Text style={styles.alternativeBenefit}>{alt.benefit}</Text>
+                    </View>
+                    <View style={styles.calorieChange}>
+                      <Text style={[ 
+                        styles.calorieChangeText,
+                        { color: alt.calorieDiff < 0 ? '#48BB78' : '#E53E3E' }
+                      ]}>
+                        {alt.calorieDiff > 0 ? '+' : ''}{alt.calorieDiff} cal
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.calorieChange}>
-                    <Text style={[
-                      styles.calorieChangeText,
-                      { color: alt.calorieDiff < 0 ? '#48BB78' : '#E53E3E' }
-                    ]}>
-                      {alt.calorieDiff > 0 ? '+' : ''}{alt.calorieDiff} cal
-                    </Text>
-                  </View>
-                </View>
-              ))}
+                ))
+              ) : (
+                <Text style={{ color: '#718096', fontSize: 12 }}>No alternatives available.</Text>
+              )}
             </View>
 
             {/* Action Buttons */}
@@ -517,8 +630,9 @@ const PlateCalorieChecker = () => {
               </TouchableOpacity>
             </View>
           </View>
-        )}
 
+
+        )}
         <View style={styles.bottomSpacing} />
       </ScrollView>
     </SafeAreaView>
@@ -680,25 +794,34 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   examplesGrid: {
+    gap: 3,
+  },
+  examplesRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
+    columnGap: 12,
+    marginBottom: 8,
   },
   exampleItem: {
-    width: (width - 56) / 2,
+    flex: 1,
     alignItems: 'center',
+    marginBottom: 0,
+    paddingHorizontal: 0,
   },
   exampleImageContainer: {
     width: '100%',
-    height: 80,
+    height: 70,
     borderRadius: 8,
     overflow: 'hidden',
-    backgroundColor: '#F7FAFC',
-    marginBottom: 8,
+    backgroundColor: '#e0e0e0', // fallback for PNG transparency
+    marginBottom: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   exampleImage: {
     width: '100%',
     height: '100%',
+    resizeMode: 'cover',
+    backgroundColor: '#e0e0e0', // fallback for PNG
   },
   exampleName: {
     fontSize: 12,

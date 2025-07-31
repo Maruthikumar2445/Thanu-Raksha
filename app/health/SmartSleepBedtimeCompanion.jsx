@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,9 +6,12 @@ import {
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
-  Platform,
+  TextInput,
+  Alert,
+  Animated,
   Dimensions,
-  TextInput
+  Platform,
+  KeyboardAvoidingView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -19,151 +22,264 @@ try {
   LinearGradient = require('expo-linear-gradient').LinearGradient;
 } catch (e) {
   LinearGradient = ({ children, colors, style, ...props }) => (
-    <View style={[style, { backgroundColor: colors?.[0] || '#667eea' }]} {...props}>
+    <View style={[style, { backgroundColor: colors?.[0] || '#6366F1' }]} {...props}>
       {children}
     </View>
   );
 }
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 const SmartSleepBedtimeCompanion = () => {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [sleepData, setSleepData] = useState({
-    basicInfo: {
-      age: '',
-      workSchedule: '',
-      bedtimeGoal: '',
-      wakeTimeGoal: ''
-    },
-    sleepPattern: {
-      currentBedtime: '',
-      currentWakeTime: '',
-      sleepQuality: '',
-      timeToFallAsleep: '',
-      nightWakeups: ''
-    },
-    lifestyle: {
-      exerciseTime: '',
-      caffeine: '',
-      alcohol: '',
-      screenTime: '',
-      stress: ''
-    },
-    preferences: {
-      roomTemp: '',
-      lightLevel: '',
-      noiseLevel: '',
-      mattressComfort: ''
-    }
+  const [formData, setFormData] = useState({
+    age: '',
+    profession: ''
   });
-  const [analysisResult, setAnalysisResult] = useState(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [schedules, setSchedules] = useState([]);
+  const [selectedSchedule, setSelectedSchedule] = useState(null);
+  const [showSchedules, setShowSchedules] = useState(false);
 
-  const workSchedules = [
-    { value: 'standard', label: 'Standard 9-5', description: 'Regular office hours' },
-    { value: 'early', label: 'Early Bird', description: 'Start before 7 AM' },
-    { value: 'night', label: 'Night Shift', description: 'Evening/night work' },
-    { value: 'flexible', label: 'Flexible', description: 'Varying schedule' },
-    { value: 'rotating', label: 'Rotating Shifts', description: 'Changing shifts' }
-  ];
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0)).current;
 
-  const sleepQualityLevels = [
-    { value: 'excellent', label: 'Excellent', icon: 'happy', color: '#48BB78' },
-    { value: 'good', label: 'Good', icon: 'happy-outline', color: '#68D391' },
-    { value: 'fair', label: 'Fair', icon: 'sad-outline', color: '#F6AD55' },
-    { value: 'poor', label: 'Poor', icon: 'sad', color: '#FC8181' }
-  ];
+  useEffect(() => {
+    // Initial fade in animation
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      })
+    ]).start();
 
-  const lifestyleFactors = [
-    { key: 'exerciseTime', label: 'Exercise Time', options: ['Morning', 'Afternoon', 'Evening', 'None'] },
-    { key: 'caffeine', label: 'Caffeine Intake', options: ['None', 'Morning only', 'Afternoon too', 'All day'] },
-    { key: 'alcohol', label: 'Alcohol Consumption', options: ['None', 'Rarely', 'Occasionally', 'Regularly'] },
-    { key: 'screenTime', label: 'Screen Time Before Bed', options: ['None', '<1 hour', '1-2 hours', '>2 hours'] }
-  ];
+    // Continuous pulse animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.1,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        })
+      ])
+    ).start();
 
-  const mockSleepPlan = {
-    sleepScore: 78,
-    recommendedBedtime: '10:30 PM',
-    recommendedWakeTime: '6:30 AM',
-    totalSleepTime: '8 hours',
-    sleepEfficiency: '85%',
-    improvements: [
-      { category: 'Bedtime Routine', score: 6, maxScore: 10 },
-      { category: 'Sleep Environment', score: 8, maxScore: 10 },
-      { category: 'Lifestyle Factors', score: 7, maxScore: 10 },
-      { category: 'Sleep Consistency', score: 5, maxScore: 10 }
-    ],
-    weeklySchedule: [
-      { day: 'Monday', bedtime: '10:30 PM', wakeTime: '6:30 AM', focus: 'Establish routine' },
-      { day: 'Tuesday', bedtime: '10:30 PM', wakeTime: '6:30 AM', focus: 'Morning light exposure' },
-      { day: 'Wednesday', bedtime: '10:30 PM', wakeTime: '6:30 AM', focus: 'Limit evening caffeine' },
-      { day: 'Thursday', bedtime: '10:30 PM', wakeTime: '6:30 AM', focus: 'Relaxation techniques' },
-      { day: 'Friday', bedtime: '10:30 PM', wakeTime: '6:30 AM', focus: 'Prepare for weekend' },
-      { day: 'Saturday', bedtime: '10:45 PM', wakeTime: '7:00 AM', focus: 'Maintain consistency' },
-      { day: 'Sunday', bedtime: '10:15 PM', wakeTime: '6:30 AM', focus: 'Prepare for week' }
-    ],
-    bedtimeRoutine: [
-      { time: '9:00 PM', activity: 'Dim lights, reduce screen time', icon: 'bulb' },
-      { time: '9:30 PM', activity: 'Light reading or meditation', icon: 'book' },
-      { time: '10:00 PM', activity: 'Personal hygiene routine', icon: 'water' },
-      { time: '10:15 PM', activity: 'Gratitude journaling', icon: 'heart' },
-      { time: '10:30 PM', activity: 'Lights out, sleep time', icon: 'moon' }
-    ],
-    environmentTips: [
-      'Keep bedroom temperature between 65-68°F (18-20°C)',
-      'Use blackout curtains or eye mask for darkness',
-      'Consider white noise machine for sound masking',
-      'Ensure comfortable mattress and pillows',
-      'Remove electronic devices from bedroom'
-    ],
-    lifestyleTips: [
-      'Exercise regularly, but not within 3 hours of bedtime',
-      'Limit caffeine after 2 PM',
-      'Avoid large meals 2-3 hours before sleep',
-      'Create a relaxing pre-sleep routine',
-      'Maintain consistent sleep schedule, even on weekends'
-    ]
-  };
+    // Rotation animation
+    Animated.loop(
+      Animated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 10000,
+        useNativeDriver: true,
+      })
+    ).start();
+  }, []);
 
-  const handleAnalyze = () => {
-    if (!sleepData.basicInfo.age || !sleepData.sleepPattern.currentBedtime) {
-      alert('Please fill in required information to continue.');
-      return;
+  useEffect(() => {
+    if (showSchedules) {
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 100,
+        friction: 8,
+        useNativeDriver: true,
+      }).start();
     }
-    setIsAnalyzing(true);
-    setTimeout(() => {
-      setIsAnalyzing(false);
-      setAnalysisResult(mockSleepPlan);
-      setCurrentStep(3);
-    }, 4000);
+  }, [showSchedules]);
+
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
-  const resetAnalysis = () => {
+  const validateForm = () => {
+    if (!formData.age || !formData.profession) {
+      Alert.alert('Missing Information', 'Please fill in both age and profession');
+      return false;
+    }
+    if (isNaN(formData.age) || formData.age < 1 || formData.age > 100) {
+      Alert.alert('Invalid Age', 'Please enter a valid age between 1 and 100');
+      return false;
+    }
+    return true;
+  };
+
+  const generateSchedules = async () => {
+    if (!validateForm()) return;
+
+    setIsGenerating(true);
+    try {
+      // Simulate Gemini AI call with mock data for now
+      // In a real implementation, you would integrate with Gemini AI directly
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
+
+      const mockSchedules = [
+        {
+          name: "🌅 Early Bird",
+          wake_up: "6:00 AM",
+          sleep: "10:00 PM",
+          face_wash: "6:15 AM",
+          milk: "6:30 AM",
+          water_times: ["6:00 AM", "10:00 AM", "2:00 PM"],
+          description: "Perfect for maximizing productivity",
+          icon: "sunny"
+        },
+        {
+          name: "😴 Relaxed Morning",
+          wake_up: "8:00 AM",
+          sleep: "11:00 PM",
+          face_wash: "8:15 AM",
+          milk: "8:30 AM",
+          water_times: ["8:00 AM", "11:00 AM", "4:00 PM"],
+          description: "Balanced routine for better sleep",
+          icon: "bed"
+        },
+        {
+          name: "📚 Study Focused",
+          wake_up: "7:00 AM",
+          sleep: "12:00 AM",
+          face_wash: "7:15 AM",
+          milk: "7:30 AM",
+          water_times: ["7:00 AM", "11:00 AM", "5:00 PM"],
+          description: "Optimized for study sessions",
+          icon: "book"
+        },
+        {
+          name: "⚖️ Balanced Day",
+          wake_up: "7:30 AM",
+          sleep: "11:30 PM",
+          face_wash: "7:45 AM",
+          milk: "8:00 AM",
+          water_times: ["7:30 AM", "12:00 PM", "6:00 PM"],
+          description: "Well-rounded daily routine",
+          icon: "heart"
+        },
+        {
+          name: "🛋️ Weekend Vibes",
+          wake_up: "9:00 AM",
+          sleep: "1:00 AM",
+          face_wash: "9:30 AM",
+          milk: "10:00 AM",
+          water_times: ["9:00 AM", "1:00 PM", "7:00 PM"],
+          description: "Relaxed schedule for rest days",
+          icon: "game-controller"
+        }
+      ];
+
+      setSchedules(mockSchedules);
+      setShowSchedules(true);
+      setCurrentStep(2);
+      scaleAnim.setValue(0);
+    } catch (error) {
+      Alert.alert('Generation Error', 'Failed to generate sleep schedules. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const selectSchedule = (schedule) => {
+    setSelectedSchedule(schedule);
+    setCurrentStep(3);
+    Alert.alert(
+      '🎉 Schedule Selected!',
+      `"${schedule.name}" routine has been selected. Sweet dreams!`,
+      [{ text: 'OK', style: 'default' }]
+    );
+  };
+
+  const resetForm = () => {
     setCurrentStep(1);
-    setSleepData({
-      basicInfo: { age: '', workSchedule: '', bedtimeGoal: '', wakeTimeGoal: '' },
-      sleepPattern: { currentBedtime: '', currentWakeTime: '', sleepQuality: '', timeToFallAsleep: '', nightWakeups: '' },
-      lifestyle: { exerciseTime: '', caffeine: '', alcohol: '', screenTime: '', stress: '' },
-      preferences: { roomTemp: '', lightLevel: '', noiseLevel: '', mattressComfort: '' }
-    });
-    setAnalysisResult(null);
+    setFormData({ age: '', profession: '' });
+    setSchedules([]);
+    setSelectedSchedule(null);
+    setShowSchedules(false);
+    scaleAnim.setValue(0);
   };
 
-  if (isAnalyzing) {
+  const getTimeIcon = (activity) => {
+    switch (activity) {
+      case 'wake_up': return 'sunny';
+      case 'sleep': return 'moon';
+      case 'face_wash': return 'water';
+      case 'milk': return 'nutrition';
+      case 'water': return 'water-outline';
+      default: return 'time';
+    }
+  };
+
+  const professionSuggestions = [
+    '👨‍💼 Business Professional',
+    '👩‍🎓 Student', 
+    '👨‍⚕️ Healthcare Worker',
+    '👩‍💻 Software Developer',
+    '👨‍🏫 Teacher',
+    '👩‍🎨 Creative Artist',
+    '👨‍🔬 Researcher',
+    '👩‍🍳 Chef',
+    '👨‍✈️ Pilot',
+    '👩‍⚖️ Lawyer'
+  ];
+
+  if (isGenerating) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
-        <LinearGradient colors={['#667eea', '#764ba2']} style={styles.loadingGradient}>
+        <LinearGradient colors={['#6366F1', '#8B5CF6', '#A855F7']} style={styles.loadingGradient}>
           <View style={styles.loadingContent}>
-            <View style={styles.loadingSpinner}>
+            <Animated.View style={[
+              styles.loadingSpinner,
+              {
+                transform: [
+                  { scale: pulseAnim },
+                  {
+                    rotate: rotateAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0deg', '360deg']
+                    })
+                  }
+                ]
+              }
+            ]}>
               <Ionicons name="moon" size={60} color="white" />
+            </Animated.View>
+            <Text style={styles.loadingText}>✨ Creating Your Perfect Sleep Schedule</Text>
+            <Text style={styles.loadingSubtext}>AI is analyzing your lifestyle...</Text>
+            
+            <View style={styles.loadingSteps}>
+              <View style={styles.loadingStep}>
+                <Ionicons name="analytics" size={16} color="rgba(255,255,255,0.8)" />
+                <Text style={styles.loadingStepText}>Analyzing your age & profession</Text>
+              </View>
+              <View style={styles.loadingStep}>
+                <Ionicons name="bulb" size={16} color="rgba(255,255,255,0.8)" />
+                <Text style={styles.loadingStepText}>Generating personalized routines</Text>
+              </View>
+              <View style={styles.loadingStep}>
+                <Ionicons name="checkmark-circle" size={16} color="rgba(255,255,255,0.8)" />
+                <Text style={styles.loadingStepText}>Optimizing for your lifestyle</Text>
+              </View>
             </View>
-            <Text style={styles.loadingText}>Analyzing your sleep patterns and creating personalized bedtime schedule...</Text>
-            <View style={styles.loadingDots}>
-              <View style={[styles.dot, { animationDelay: '0ms' }]} />
-              <View style={[styles.dot, { animationDelay: '200ms' }]} />
-              <View style={[styles.dot, { animationDelay: '400ms' }]} />
+
+            <View style={styles.loadingProgress}>
+              <View style={styles.progressBar}>
+                <Animated.View style={[styles.progressFill, { opacity: pulseAnim }]} />
+              </View>
+              <Text style={styles.progressText}>Please wait...</Text>
             </View>
           </View>
         </LinearGradient>
@@ -174,424 +290,247 @@ const SmartSleepBedtimeCompanion = () => {
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
-      <LinearGradient colors={['#667eea', '#764ba2']} style={styles.header}>
+      <LinearGradient colors={['#6366F1', '#8B5CF6']} style={styles.header}>
         <View style={styles.headerContent}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="white" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Sleep Companion</Text>
-          <View style={styles.placeholder} />
+          <Text style={styles.headerTitle}>😴 Sleep Companion</Text>
+          <TouchableOpacity onPress={resetForm} style={styles.resetButton}>
+            <Ionicons name="refresh" size={24} color="white" />
+          </TouchableOpacity>
         </View>
       </LinearGradient>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {currentStep === 1 && (
-          // Step 1: Basic Info & Sleep Goals
-          <View style={styles.assessmentSection}>
-            <View style={styles.welcomeCard}>
-              <Ionicons name="moon" size={32} color="#667eea" />
-              <View style={styles.welcomeContent}>
-                <Text style={styles.welcomeTitle}>Smart Sleep Optimization</Text>
-                <Text style={styles.welcomeText}>
-                  Get personalized sleep recommendations based on your lifestyle and goals.
-                </Text>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
+      >
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ flexGrow: 1 }}
+        >
+          {currentStep === 1 && (
+            <Animated.View style={[styles.welcomeSection, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+              {/* Welcome Card */}
+              <View style={styles.welcomeCard}>
+                <LinearGradient colors={['#6366F1', '#8B5CF6', '#A855F7']} style={styles.welcomeGradient}>
+                  <Animated.View style={[styles.welcomeIcon, { transform: [{ scale: pulseAnim }] }]}>
+                    <Text style={styles.welcomeEmoji}>🌙</Text>
+                  </Animated.View>
+                  <Text style={styles.welcomeTitle}>Smart Sleep Bedtime Companion</Text>
+                  <Text style={styles.welcomeText}>
+                    Get AI-powered personalized sleep schedules tailored to your age and profession for better rest and productivity
+                  </Text>
+                </LinearGradient>
               </View>
-            </View>
 
-            <View style={styles.basicInfoCard}>
-              <Text style={styles.cardTitle}>Basic Information</Text>
-              <Text style={styles.cardSubtitle}>Tell us about your current situation</Text>
-              
-              <View style={styles.inputGrid}>
-                <View style={styles.inputRow}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Age *</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="25"
-                      value={sleepData.basicInfo.age}
-                      onChangeText={(text) => setSleepData(prev => ({
-                        ...prev,
-                        basicInfo: { ...prev.basicInfo, age: text }
-                      }))}
-                      keyboardType="numeric"
-                    />
+              {/* Form Card */}
+              <View style={styles.formCard}>
+                <Text style={styles.formTitle}>🎯 Tell Us About Yourself</Text>
+                <Text style={styles.formSubtitle}>We'll create the perfect sleep routine just for you</Text>
+                
+                {/* Age Input */}
+                <View style={styles.inputContainer}>
+                  <View style={styles.inputHeader}>
+                    <Ionicons name="calendar" size={20} color="#6366F1" />
+                    <Text style={styles.inputLabel}>Your Age</Text>
                   </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Ideal Bedtime</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="10:30 PM"
-                      value={sleepData.basicInfo.bedtimeGoal}
-                      onChangeText={(text) => setSleepData(prev => ({
-                        ...prev,
-                        basicInfo: { ...prev.basicInfo, bedtimeGoal: text }
-                      }))}
-                    />
-                  </View>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Enter your age (e.g., 25)"
+                    placeholderTextColor="#A0AEC0"
+                    value={formData.age}
+                    onChangeText={(value) => handleInputChange('age', value)}
+                    keyboardType="numeric"
+                    returnKeyType="done"
+                  />
                 </View>
 
-                <View style={styles.inputRow}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Ideal Wake Time</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="6:30 AM"
-                      value={sleepData.basicInfo.wakeTimeGoal}
-                      onChangeText={(text) => setSleepData(prev => ({
-                        ...prev,
-                        basicInfo: { ...prev.basicInfo, wakeTimeGoal: text }
-                      }))}
-                    />
+                {/* Profession Input */}
+                <View style={styles.inputContainer}>
+                  <View style={styles.inputHeader}>
+                    <Ionicons name="briefcase" size={20} color="#6366F1" />
+                    <Text style={styles.inputLabel}>Your Profession</Text>
                   </View>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Enter your profession (e.g., Student)"
+                    placeholderTextColor="#A0AEC0"
+                    value={formData.profession}
+                    onChangeText={(value) => handleInputChange('profession', value)}
+                    returnKeyType="done"
+                  />
                 </View>
 
-                <View style={styles.workScheduleSection}>
-                  <Text style={styles.inputLabel}>Work Schedule *</Text>
-                  <View style={styles.scheduleOptions}>
-                    {workSchedules.map((schedule) => (
+                {/* Profession Suggestions */}
+                <View style={styles.suggestionsContainer}>
+                  <Text style={styles.suggestionsTitle}>💡 Popular Professions:</Text>
+                  <View style={styles.suggestionsGrid}>
+                    {professionSuggestions.slice(0, 6).map((suggestion, index) => (
                       <TouchableOpacity
-                        key={schedule.value}
-                        style={[
-                          styles.scheduleOption,
-                          sleepData.basicInfo.workSchedule === schedule.value && styles.scheduleOptionSelected
-                        ]}
-                        onPress={() => setSleepData(prev => ({
-                          ...prev,
-                          basicInfo: { ...prev.basicInfo, workSchedule: schedule.value }
-                        }))}
+                        key={index}
+                        style={styles.suggestionChip}
+                        onPress={() => handleInputChange('profession', suggestion.split(' ').slice(1).join(' '))}
                       >
-                        <Text style={[
-                          styles.scheduleLabel,
-                          sleepData.basicInfo.workSchedule === schedule.value && styles.scheduleLabelSelected
-                        ]}>
-                          {schedule.label}
-                        </Text>
-                        <Text style={styles.scheduleDescription}>{schedule.description}</Text>
+                        <Text style={styles.suggestionText}>{suggestion}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
                 </View>
+
+                {/* Generate Button */}
+                <TouchableOpacity style={styles.generateButton} onPress={generateSchedules}>
+                  <LinearGradient colors={['#6366F1', '#8B5CF6']} style={styles.generateGradient}>
+                    <Ionicons name="sparkles" size={24} color="white" />
+                    <Text style={styles.generateText}>Generate Sleep Schedules</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
               </View>
-            </View>
+            </Animated.View>
+          )}
 
-            <View style={styles.continueButton}>
-              <TouchableOpacity
-                style={[
-                  styles.nextButton,
-                  { opacity: sleepData.basicInfo.age && sleepData.basicInfo.workSchedule ? 1 : 0.5 }
-                ]}
-                onPress={() => setCurrentStep(2)}
-                disabled={!sleepData.basicInfo.age || !sleepData.basicInfo.workSchedule}
-              >
-                <LinearGradient colors={['#667eea', '#764ba2']} style={styles.nextGradient}>
-                  <Text style={styles.nextText}>Continue to Sleep Pattern</Text>
-                  <Ionicons name="arrow-forward" size={20} color="white" />
+          {currentStep === 2 && showSchedules && (
+            <Animated.View style={[styles.schedulesSection, { transform: [{ scale: scaleAnim }] }]}>
+              <View style={styles.schedulesHeader}>
+                <LinearGradient colors={['#6366F1', '#8B5CF6']} style={styles.schedulesHeaderGradient}>
+                  <Text style={styles.schedulesHeaderIcon}>🎨</Text>
+                  <Text style={styles.schedulesHeaderTitle}>Your Personalized Sleep Schedules</Text>
+                  <Text style={styles.schedulesHeaderSubtitle}>
+                    Choose the routine that fits your lifestyle best
+                  </Text>
                 </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
+              </View>
 
-        {currentStep === 2 && (
-          // Step 2: Sleep Pattern & Lifestyle
-          <View style={styles.patternSection}>
-            <View style={styles.sleepPatternCard}>
-              <Text style={styles.cardTitle}>Current Sleep Pattern</Text>
-              <Text style={styles.cardSubtitle}>Your current sleep habits and quality</Text>
-              
-              <View style={styles.patternInputs}>
-                <View style={styles.inputRow}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Current Bedtime *</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="11:00 PM"
-                      value={sleepData.sleepPattern.currentBedtime}
-                      onChangeText={(text) => setSleepData(prev => ({
-                        ...prev,
-                        sleepPattern: { ...prev.sleepPattern, currentBedtime: text }
-                      }))}
-                    />
-                  </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Current Wake Time *</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="7:00 AM"
-                      value={sleepData.sleepPattern.currentWakeTime}
-                      onChangeText={(text) => setSleepData(prev => ({
-                        ...prev,
-                        sleepPattern: { ...prev.sleepPattern, currentWakeTime: text }
-                      }))}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.inputRow}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Time to Fall Asleep</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="15 minutes"
-                      value={sleepData.sleepPattern.timeToFallAsleep}
-                      onChangeText={(text) => setSleepData(prev => ({
-                        ...prev,
-                        sleepPattern: { ...prev.sleepPattern, timeToFallAsleep: text }
-                      }))}
-                    />
-                  </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Night Wakeups</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="1-2 times"
-                      value={sleepData.sleepPattern.nightWakeups}
-                      onChangeText={(text) => setSleepData(prev => ({
-                        ...prev,
-                        sleepPattern: { ...prev.sleepPattern, nightWakeups: text }
-                      }))}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.qualitySection}>
-                  <Text style={styles.inputLabel}>Sleep Quality *</Text>
-                  <View style={styles.qualityOptions}>
-                    {sleepQualityLevels.map((quality) => (
-                      <TouchableOpacity
-                        key={quality.value}
-                        style={[
-                          styles.qualityCard,
-                          sleepData.sleepPattern.sleepQuality === quality.value && styles.qualityCardSelected
-                        ]}
-                        onPress={() => setSleepData(prev => ({
-                          ...prev,
-                          sleepPattern: { ...prev.sleepPattern, sleepQuality: quality.value }
-                        }))}
-                      >
-                        <View style={[
-                          styles.qualityIcon,
-                          { backgroundColor: sleepData.sleepPattern.sleepQuality === quality.value ? quality.color : '#F7FAFC' }
-                        ]}>
-                          <Ionicons 
-                            name={quality.icon} 
-                            size={20} 
-                            color={sleepData.sleepPattern.sleepQuality === quality.value ? 'white' : '#718096'} 
-                          />
+              {schedules.map((schedule, index) => (
+                <Animated.View
+                  key={index}
+                  style={[
+                    styles.scheduleCard,
+                    {
+                      opacity: fadeAnim,
+                      transform: [{
+                        translateY: slideAnim.interpolate({
+                          inputRange: [0, 50],
+                          outputRange: [0, 50 + (index * 20)]
+                        })
+                      }]
+                    }
+                  ]}
+                >
+                  <TouchableOpacity onPress={() => selectSchedule(schedule)}>
+                    <LinearGradient 
+                      colors={index % 2 === 0 ? ['#F3F4F6', '#FFFFFF'] : ['#EEF2FF', '#F8FAFC']} 
+                      style={styles.scheduleCardGradient}
+                    >
+                      <View style={styles.scheduleHeader}>
+                        <View style={styles.scheduleIconContainer}>
+                          <Ionicons name={schedule.icon} size={24} color="#6366F1" />
                         </View>
-                        <Text style={[
-                          styles.qualityName,
-                          sleepData.sleepPattern.sleepQuality === quality.value && { color: quality.color }
-                        ]}>
-                          {quality.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                        <View style={styles.scheduleHeaderText}>
+                          <Text style={styles.scheduleName}>{schedule.name}</Text>
+                          <Text style={styles.scheduleDescription}>{schedule.description}</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color="#6366F1" />
+                      </View>
+
+                      <View style={styles.scheduleDetails}>
+                        <View style={styles.scheduleTime}>
+                          <Ionicons name="sunny" size={16} color="#F59E0B" />
+                          <Text style={styles.scheduleTimeText}>Wake: {schedule.wake_up}</Text>
+                        </View>
+                        <View style={styles.scheduleTime}>
+                          <Ionicons name="moon" size={16} color="#6366F1" />
+                          <Text style={styles.scheduleTimeText}>Sleep: {schedule.sleep}</Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.routineActivities}>
+                        <View style={styles.activity}>
+                          <Ionicons name="water" size={14} color="#06B6D4" />
+                          <Text style={styles.activityText}>Face wash: {schedule.face_wash}</Text>
+                        </View>
+                        <View style={styles.activity}>
+                          <Ionicons name="nutrition" size={14} color="#8B5CF6" />
+                          <Text style={styles.activityText}>Milk: {schedule.milk}</Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.waterReminders}>
+                        <Text style={styles.waterTitle}>💧 Water Reminders:</Text>
+                        <View style={styles.waterTimes}>
+                          {schedule.water_times.map((time, i) => (
+                            <View key={i} style={styles.waterTimeChip}>
+                              <Text style={styles.waterTimeText}>{time}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </Animated.View>
+              ))}
+            </Animated.View>
+          )}
+
+          {currentStep === 3 && selectedSchedule && (
+            <Animated.View style={[styles.selectedSection, { opacity: fadeAnim }]}>
+              <LinearGradient colors={['#10B981', '#059669']} style={styles.successCard}>
+                <Animated.View style={[styles.successIcon, { transform: [{ scale: pulseAnim }] }]}>
+                  <Ionicons name="checkmark-circle" size={60} color="white" />
+                </Animated.View>
+                <Text style={styles.successTitle}>🎉 Schedule Activated!</Text>
+                <Text style={styles.successSubtitle}>"{selectedSchedule.name}" routine is now your active sleep schedule</Text>
+                
+                <View style={styles.selectedScheduleDetails}>
+                  <Text style={styles.selectedScheduleTitle}>📋 Your Daily Routine:</Text>
+                  
+                  <View style={styles.selectedActivity}>
+                    <Ionicons name="sunny" size={20} color="#F59E0B" />
+                    <Text style={styles.selectedActivityText}>Wake up at {selectedSchedule.wake_up}</Text>
+                  </View>
+                  
+                  <View style={styles.selectedActivity}>
+                    <Ionicons name="water" size={20} color="#06B6D4" />
+                    <Text style={styles.selectedActivityText}>Face wash at {selectedSchedule.face_wash}</Text>
+                  </View>
+                  
+                  <View style={styles.selectedActivity}>
+                    <Ionicons name="nutrition" size={20} color="#8B5CF6" />
+                    <Text style={styles.selectedActivityText}>Drink milk at {selectedSchedule.milk}</Text>
+                  </View>
+                  
+                  <View style={styles.selectedActivity}>
+                    <Ionicons name="moon" size={20} color="#6366F1" />
+                    <Text style={styles.selectedActivityText}>Sleep at {selectedSchedule.sleep}</Text>
+                  </View>
+                  
+                  <View style={styles.waterRemindersSelected}>
+                    <Text style={styles.waterReminderTitle}>💧 Water reminders:</Text>
+                    <Text style={styles.waterReminderTimes}>
+                      {selectedSchedule.water_times.join(' • ')}
+                    </Text>
                   </View>
                 </View>
-              </View>
-            </View>
 
-            <View style={styles.lifestyleCard}>
-              <Text style={styles.cardTitle}>Lifestyle Factors</Text>
-              <Text style={styles.cardSubtitle}>These affect your sleep quality</Text>
-              
-              <View style={styles.lifestyleFactors}>
-                {lifestyleFactors.map((factor) => (
-                  <View key={factor.key} style={styles.factorGroup}>
-                    <Text style={styles.inputLabel}>{factor.label}</Text>
-                    <View style={styles.optionRow}>
-                      {factor.options.map((option) => (
-                        <TouchableOpacity
-                          key={option}
-                          style={[
-                            styles.optionChip,
-                            sleepData.lifestyle[factor.key] === option && styles.optionChipSelected
-                          ]}
-                          onPress={() => setSleepData(prev => ({
-                            ...prev,
-                            lifestyle: { ...prev.lifestyle, [factor.key]: option }
-                          }))}
-                        >
-                          <Text style={[
-                            styles.optionChipText,
-                            sleepData.lifestyle[factor.key] === option && styles.optionChipTextSelected
-                          ]}>
-                            {option}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-                ))}
-              </View>
-            </View>
-
-            <View style={styles.actionButtons}>
-              <TouchableOpacity style={styles.backButton} onPress={() => setCurrentStep(1)}>
-                <Text style={styles.backButtonText}>Back</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.analyzeButton} onPress={handleAnalyze}>
-                <LinearGradient colors={['#667eea', '#764ba2']} style={styles.analyzeGradient}>
-                  <Ionicons name="moon" size={20} color="white" />
-                  <Text style={styles.analyzeText}>Create Sleep Plan</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {currentStep === 3 && analysisResult && (
-          // Step 3: Sleep Plan Results
-          <View style={styles.resultsSection}>
-            <View style={styles.resultHeader}>
-              <LinearGradient colors={['#667eea', '#764ba2']} style={styles.resultHeaderGradient}>
-                <Ionicons name="moon" size={32} color="white" />
-                <Text style={styles.resultHeaderTitle}>Your Sleep Plan</Text>
-                <Text style={styles.resultHeaderSubtitle}>Personalized for Better Sleep</Text>
+                <View style={styles.successActions}>
+                  <TouchableOpacity style={styles.newScheduleButton} onPress={resetForm}>
+                    <LinearGradient colors={['#6366F1', '#8B5CF6']} style={styles.newScheduleGradient}>
+                      <Ionicons name="add" size={20} color="white" />
+                      <Text style={styles.newScheduleText}>Create New Schedule</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
               </LinearGradient>
-            </View>
+            </Animated.View>
+          )}
 
-            {/* Sleep Score */}
-            <View style={styles.sleepScoreCard}>
-              <View style={styles.scoreDisplay}>
-                <View style={[
-                  styles.scoreCircle,
-                  { backgroundColor: analysisResult.sleepScore >= 80 ? '#48BB78' : analysisResult.sleepScore >= 60 ? '#ED8936' : '#E53E3E' }
-                ]}>
-                  <Text style={styles.scoreNumber}>{analysisResult.sleepScore}</Text>
-                  <Text style={styles.scoreUnit}>%</Text>
-                </View>
-                <View style={styles.scoreInfo}>
-                  <Text style={styles.sleepScoreText}>Sleep Score</Text>
-                  <Text style={styles.recommendedTimes}>
-                    Bedtime: {analysisResult.recommendedBedtime}
-                  </Text>
-                  <Text style={styles.recommendedTimes}>
-                    Wake: {analysisResult.recommendedWakeTime}
-                  </Text>
-                  <View style={styles.sleepTimeBadge}>
-                    <Text style={styles.sleepTimeText}>{analysisResult.totalSleepTime} sleep</Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-
-            {/* Sleep Improvements */}
-            <View style={styles.improvementsCard}>
-              <Text style={styles.improvementsTitle}>Areas for Improvement</Text>
-              {analysisResult.improvements.map((improvement, index) => (
-                <View key={index} style={styles.improvementItem}>
-                  <View style={styles.improvementHeader}>
-                    <Text style={styles.improvementName}>{improvement.category}</Text>
-                    <Text style={styles.improvementScore}>{improvement.score}/{improvement.maxScore}</Text>
-                  </View>
-                  <View style={styles.progressBar}>
-                    <View 
-                      style={[
-                        styles.progressFill, 
-                        { 
-                          width: `${(improvement.score / improvement.maxScore) * 100}%`,
-                          backgroundColor: improvement.score >= 8 ? '#48BB78' : improvement.score >= 6 ? '#ED8936' : '#E53E3E'
-                        }
-                      ]} 
-                    />
-                  </View>
-                </View>
-              ))}
-            </View>
-
-            {/* Weekly Schedule */}
-            <View style={styles.weeklyScheduleCard}>
-              <Text style={styles.weeklyScheduleTitle}>Your Weekly Sleep Schedule</Text>
-              
-              {analysisResult.weeklySchedule.map((day, index) => (
-                <View key={index} style={styles.dayScheduleCard}>
-                  <View style={styles.dayHeader}>
-                    <Text style={styles.dayName}>{day.day}</Text>
-                    <View style={styles.dayTimes}>
-                      <Text style={styles.dayTime}>🌙 {day.bedtime}</Text>
-                      <Text style={styles.dayTime}>☀️ {day.wakeTime}</Text>
-                    </View>
-                  </View>
-                  <Text style={styles.dayFocus}>Focus: {day.focus}</Text>
-                </View>
-              ))}
-            </View>
-
-            {/* Bedtime Routine */}
-            <View style={styles.routineCard}>
-              <Text style={styles.routineTitle}>Recommended Bedtime Routine</Text>
-              
-              {analysisResult.bedtimeRoutine.map((step, index) => (
-                <View key={index} style={styles.routineStep}>
-                  <View style={styles.routineTime}>
-                    <Text style={styles.routineTimeText}>{step.time}</Text>
-                  </View>
-                  <View style={styles.routineIcon}>
-                    <Ionicons name={step.icon} size={20} color="#667eea" />
-                  </View>
-                  <Text style={styles.routineActivity}>{step.activity}</Text>
-                </View>
-              ))}
-            </View>
-
-            {/* Tips */}
-            <View style={styles.tipsCard}>
-              <Text style={styles.tipsTitle}>💡 Sleep Environment Tips</Text>
-              
-              {analysisResult.environmentTips.map((tip, index) => (
-                <View key={index} style={styles.tipItem}>
-                  <Ionicons name="checkmark-circle" size={16} color="#667eea" />
-                  <Text style={styles.tipText}>{tip}</Text>
-                </View>
-              ))}
-            </View>
-
-            <View style={styles.tipsCard}>
-              <Text style={styles.tipsTitle}>🌟 Lifestyle Tips</Text>
-              
-              {analysisResult.lifestyleTips.map((tip, index) => (
-                <View key={index} style={styles.tipItem}>
-                  <Ionicons name="star" size={16} color="#667eea" />
-                  <Text style={styles.tipText}>{tip}</Text>
-                </View>
-              ))}
-            </View>
-
-            {/* Action Buttons */}
-            <View style={styles.finalActions}>
-              <TouchableOpacity style={styles.saveButton}>
-                <LinearGradient colors={['#48BB78', '#38A169']} style={styles.saveGradient}>
-                  <Ionicons name="bookmark" size={20} color="white" />
-                  <Text style={styles.saveText}>Save Plan</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.shareButton}>
-                <LinearGradient colors={['#4299E1', '#3182CE']} style={styles.shareGradient}>
-                  <Ionicons name="share" size={20} color="white" />
-                  <Text style={styles.shareText}>Share Plan</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.newPlanButton} onPress={resetAnalysis}>
-                <LinearGradient colors={['#667eea', '#764ba2']} style={styles.newPlanGradient}>
-                  <Ionicons name="refresh" size={20} color="white" />
-                  <Text style={styles.newPlanText}>New Plan</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        <View style={styles.bottomSpacing} />
-      </ScrollView>
+          <View style={styles.bottomSpacing} />
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -599,661 +538,8 @@ const SmartSleepBedtimeCompanion = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7FAFC',
+    backgroundColor: '#F8FAFC',
   },
-  header: {
-    paddingTop: Platform.OS === 'ios' ? 44 : 24,
-    paddingBottom: 16,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  placeholder: {
-    width: 40,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 16,
-  },
-  assessmentSection: {
-    marginTop: 20,
-  },
-  welcomeCard: {
-    backgroundColor: '#EDF2F7',
-    padding: 16,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#CBD5E0',
-  },
-  welcomeContent: {
-    flex: 1,
-  },
-  welcomeTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#667eea',
-    marginBottom: 4,
-  },
-  welcomeText: {
-    fontSize: 12,
-    color: '#4A5568',
-    lineHeight: 16,
-  },
-  basicInfoCard: {
-    backgroundColor: 'white',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 6,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2D3748',
-    marginBottom: 4,
-  },
-  cardSubtitle: {
-    fontSize: 12,
-    color: '#718096',
-    marginBottom: 16,
-  },
-  inputGrid: {
-    gap: 12,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  inputGroup: {
-    flex: 1,
-  },
-  inputLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#4A5568',
-    marginBottom: 6,
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 6,
-    padding: 10,
-    fontSize: 14,
-    color: '#2D3748',
-    backgroundColor: '#F7FAFC',
-  },
-  workScheduleSection: {
-    marginTop: 4,
-  },
-  scheduleOptions: {
-    gap: 8,
-  },
-  scheduleOption: {
-    padding: 12,
-    borderRadius: 10,
-    backgroundColor: '#F7FAFC',
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  scheduleOptionSelected: {
-    backgroundColor: '#EDF2F7',
-    borderColor: '#667eea',
-  },
-  scheduleLabel: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#2D3748',
-    marginBottom: 2,
-  },
-  scheduleLabelSelected: {
-    color: '#667eea',
-  },
-  scheduleDescription: {
-    fontSize: 11,
-    color: '#718096',
-  },
-  continueButton: {
-    marginTop: 8,
-  },
-  nextButton: {
-    borderRadius: 10,
-    overflow: 'hidden',
-  },
-  nextGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    gap: 6,
-  },
-  nextText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  patternSection: {
-    marginTop: 20,
-  },
-  sleepPatternCard: {
-    backgroundColor: 'white',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 6,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  patternInputs: {
-    gap: 12,
-  },
-  qualitySection: {
-    marginTop: 4,
-  },
-  qualityOptions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  qualityCard: {
-    flex: 1,
-    backgroundColor: '#F7FAFC',
-    padding: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  qualityCardSelected: {
-    backgroundColor: '#EDF2F7',
-    borderColor: '#667eea',
-  },
-  qualityIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  qualityName: {
-    fontSize: 10,
-    color: '#718096',
-    textAlign: 'center',
-    fontWeight: '600',
-  },
-  lifestyleCard: {
-    backgroundColor: 'white',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 6,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  lifestyleFactors: {
-    gap: 16,
-  },
-  factorGroup: {
-    marginBottom: 4,
-  },
-  optionRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  optionChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    backgroundColor: '#F7FAFC',
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  optionChipSelected: {
-    backgroundColor: '#EDF2F7',
-    borderColor: '#667eea',
-  },
-  optionChipText: {
-    fontSize: 11,
-    color: '#718096',
-    fontWeight: '600',
-  },
-  optionChipTextSelected: {
-    color: '#667eea',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 16,
-  },
-  backButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#667eea',
-    alignItems: 'center',
-    backgroundColor: 'white',
-  },
-  backButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#667eea',
-  },
-  analyzeButton: {
-    flex: 2,
-    borderRadius: 10,
-    overflow: 'hidden',
-  },
-  analyzeGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    gap: 6,
-  },
-  analyzeText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  resultsSection: {
-    marginTop: 20,
-  },
-  resultHeader: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 10,
-      },
-      android: {
-        elevation: 5,
-      },
-    }),
-  },
-  resultHeaderGradient: {
-    padding: 20,
-    alignItems: 'center',
-    gap: 6,
-  },
-  resultHeaderTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  resultHeaderSubtitle: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  sleepScoreCard: {
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 12,
-    marginBottom: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 6,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  scoreDisplay: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  scoreCircle: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexDirection: 'row',
-  },
-  scoreNumber: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  scoreUnit: {
-    fontSize: 14,
-    color: 'white',
-    marginLeft: 2,
-  },
-  scoreInfo: {
-    flex: 1,
-  },
-  sleepScoreText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2D3748',
-    marginBottom: 4,
-  },
-  recommendedTimes: {
-    fontSize: 12,
-    color: '#718096',
-    marginBottom: 2,
-  },
-  sleepTimeBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#EDF2F7',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginTop: 4,
-  },
-  sleepTimeText: {
-    fontSize: 11,
-    fontWeight: 'bold',
-    color: '#4A5568',
-  },
-  improvementsCard: {
-    backgroundColor: 'white',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 6,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  improvementsTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2D3748',
-    marginBottom: 12,
-  },
-  improvementItem: {
-    marginBottom: 12,
-  },
-  improvementHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  improvementName: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#2D3748',
-  },
-  improvementScore: {
-    fontSize: 12,
-    color: '#667eea',
-    fontWeight: 'bold',
-  },
-  progressBar: {
-    height: 6,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 3,
-  },
-  weeklyScheduleCard: {
-    backgroundColor: 'white',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 6,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  weeklyScheduleTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2D3748',
-    marginBottom: 12,
-  },
-  dayScheduleCard: {
-    backgroundColor: '#F7FAFC',
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 8,
-  },
-  dayHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  dayName: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#2D3748',
-  },
-  dayTimes: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  dayTime: {
-    fontSize: 11,
-    color: '#4A5568',
-    fontWeight: '600',
-  },
-  dayFocus: {
-    fontSize: 11,
-    color: '#667eea',
-    fontStyle: 'italic',
-  },
-  routineCard: {
-    backgroundColor: 'white',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 6,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  routineTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2D3748',
-    marginBottom: 12,
-  },
-  routineStep: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-    gap: 12,
-  },
-  routineTime: {
-    width: 60,
-  },
-  routineTimeText: {
-    fontSize: 11,
-    color: '#667eea',
-    fontWeight: 'bold',
-  },
-  routineIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#EDF2F7',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  routineActivity: {
-    flex: 1,
-    fontSize: 12,
-    color: '#2D3748',
-    lineHeight: 16,
-  },
-  tipsCard: {
-    backgroundColor: 'white',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 6,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  tipsTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2D3748',
-    marginBottom: 12,
-  },
-  tipItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-    gap: 8,
-  },
-  tipText: {
-    fontSize: 12,
-    color: '#718096',
-    flex: 1,
-    lineHeight: 16,
-  },
-  finalActions: {
-    flexDirection: 'row',
-    gap: 6,
-    marginBottom: 16,
-  },
-  saveButton: {
-    flex: 1,
-    borderRadius: 10,
-    overflow: 'hidden',
-  },
-  saveGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    gap: 4,
-  },
-  saveText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  shareButton: {
-    flex: 1,
-    borderRadius: 10,
-    overflow: 'hidden',
-  },
-  shareGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    gap: 4,
-  },
-  shareText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  newPlanButton: {
-    flex: 1,
-    borderRadius: 10,
-    overflow: 'hidden',
-  },
-  newPlanGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    gap: 4,
-  },
-  newPlanText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  bottomSpacing: {
-    height: 20,
-  },
-  // Loading Component Styles
   loadingContainer: {
     flex: 1,
   },
@@ -1261,37 +547,445 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 40,
   },
   loadingContent: {
     alignItems: 'center',
+    padding: 40,
+    width: '100%',
   },
   loadingSpinner: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
     marginBottom: 24,
   },
   loadingText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: 'white',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  loadingSubtext: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginBottom: 32,
+    textAlign: 'center',
+  },
+  loadingSteps: {
+    marginBottom: 32,
+    width: '100%',
+  },
+  loadingStep: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 20,
+  },
+  loadingStepText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginLeft: 12,
+  },
+  loadingProgress: {
+    width: width * 0.7,
+    alignItems: 'center',
+  },
+  progressBar: {
+    width: '100%',
+    height: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  progressFill: {
+    height: '100%',
+    width: '100%',
+    backgroundColor: 'white',
+    borderRadius: 2,
+  },
+  progressText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  header: {
+    paddingTop: Platform.OS === 'ios' ? 0 : 24,
+    paddingBottom: 16,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+  },
+  backButton: {
+    padding: 8,
+  },
+  resetButton: {
+    padding: 8,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: 'white',
+    flex: 1,
+    textAlign: 'center',
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  welcomeSection: {
+    marginTop: 20,
+  },
+  welcomeCard: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  welcomeGradient: {
+    padding: 32,
+    alignItems: 'center',
+  },
+  welcomeIcon: {
+    marginBottom: 16,
+  },
+  welcomeEmoji: {
+    fontSize: 48,
+  },
+  welcomeTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: 'white',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  welcomeText: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  formCard: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  formTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  formSubtitle: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  inputContainer: {
+    marginBottom: 20,
+  },
+  inputHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    marginLeft: 8,
+  },
+  textInput: {
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: '#1F2937',
+    backgroundColor: '#F9FAFB',
+    fontWeight: '500',
+  },
+  suggestionsContainer: {
+    marginBottom: 24,
+  },
+  suggestionsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 12,
+  },
+  suggestionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -4,
+  },
+  suggestionChip: {
+    backgroundColor: '#EEF2FF',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    margin: 4,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  suggestionText: {
+    fontSize: 12,
+    color: '#6366F1',
+    fontWeight: '500',
+  },
+  generateButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  generateGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 18,
+  },
+  generateText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: 'white',
+    marginLeft: 8,
+  },
+  schedulesSection: {
+    marginTop: 20,
+  },
+  schedulesHeader: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  schedulesHeaderGradient: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  schedulesHeaderIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  schedulesHeaderTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: 'white',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  schedulesHeaderSubtitle: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+  },
+  scheduleCard: {
+    marginBottom: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  scheduleCardGradient: {
+    padding: 20,
+  },
+  scheduleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  scheduleIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  scheduleHeaderText: {
+    flex: 1,
+  },
+  scheduleName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  scheduleDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  scheduleDetails: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  scheduleTime: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 20,
+  },
+  scheduleTimeText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginLeft: 6,
+  },
+  routineActivities: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  activity: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 20,
+  },
+  activityText: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginLeft: 6,
+  },
+  waterReminders: {
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    paddingTop: 16,
+  },
+  waterTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  waterTimes: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  waterTimeChip: {
+    backgroundColor: '#DBEAFE',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginRight: 8,
+    marginBottom: 4,
+  },
+  waterTimeText: {
+    fontSize: 12,
+    color: '#1E40AF',
+    fontWeight: '500',
+  },
+  selectedSection: {
+    marginTop: 20,
+  },
+  successCard: {
+    borderRadius: 20,
+    padding: 32,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  successIcon: {
+    marginBottom: 20,
+  },
+  successTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: 'white',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  successSubtitle: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  selectedScheduleDetails: {
+    width: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+  },
+  selectedScheduleTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: 'white',
+    marginBottom: 16,
+  },
+  selectedActivity: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  selectedActivityText: {
     fontSize: 16,
     color: 'white',
-    textAlign: 'center',
-    marginBottom: 24,
+    marginLeft: 12,
+    fontWeight: '500',
+  },
+  waterRemindersSelected: {
+    marginTop: 8,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  waterReminderTitle: {
+    fontSize: 16,
     fontWeight: '600',
+    color: 'white',
+    marginBottom: 8,
   },
-  loadingDots: {
+  waterReminderTimes: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '500',
+  },
+  successActions: {
+    width: '100%',
+  },
+  newScheduleButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  newScheduleGradient: {
     flexDirection: 'row',
-    gap: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
   },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'white',
-    opacity: 0.3,
+  newScheduleText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
+    marginLeft: 8,
+  },
+  bottomSpacing: {
+    height: 40,
   },
 });
 

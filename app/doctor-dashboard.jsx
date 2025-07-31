@@ -11,7 +11,6 @@ import {
   Platform,
   RefreshControl,
   Modal,
-  TextInput,
   FlatList
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
@@ -62,6 +61,23 @@ const DoctorDashboard = () => {
     }
   };
 
+  // Video Call Function - Updated to navigate to video call screen
+  const startVideoCall = (patientInfo = null) => {
+    // You can pass patient information to the video call screen
+    const videoCallParams = {
+      doctorName: 'Dr. John Smith',
+      doctorSpecialty: 'Cardiologist',
+      patientName: patientInfo?.name || 'Patient',
+      callType: 'doctor-initiated'
+    };
+    
+    // Navigate to video call screen with parameters
+    router.push({
+      pathname: '/video-call',
+      params: videoCallParams
+    });
+  };
+
   // Sample data for different sections
   const patientsData = [
     { id: 1, name: 'Sarah Johnson', age: 28, condition: 'Hypertension', lastVisit: '2024-07-20', phone: '+1234567890', status: 'Active' },
@@ -85,7 +101,7 @@ const DoctorDashboard = () => {
     { id: 5, time: '03:30 PM', patient: 'Lisa Wilson', type: 'Consultation', duration: '30 min' }
   ];
 
-  // Quick Actions with modal handling
+  // Quick Actions with updated video call function
   const quickActions = [
     { 
       id: 1, 
@@ -109,7 +125,7 @@ const DoctorDashboard = () => {
       icon: 'videocam',
       iconType: 'ionicons',
       colors: ['#f093fb', '#f5576c'],
-      action: () => router.push('/video-call')
+      action: () => startVideoCall() // Updated to use startVideoCall function
     },
     { 
       id: 4, 
@@ -215,9 +231,17 @@ const DoctorDashboard = () => {
                   <Text style={styles.appointmentType}>{appointment.type}</Text>
                 </View>
               </View>
-              <View style={styles.appointmentTime}>
-                <Text style={styles.timeText}>{appointment.time}</Text>
-                <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+              <View style={styles.appointmentActions}>
+                <TouchableOpacity 
+                  style={styles.appointmentVideoButton}
+                  onPress={() => startVideoCall({ name: appointment.name, type: appointment.type })}
+                >
+                  <Ionicons name="videocam" size={16} color="#4ECDC4" />
+                </TouchableOpacity>
+                <View style={styles.appointmentTime}>
+                  <Text style={styles.timeText}>{appointment.time}</Text>
+                  <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+                </View>
               </View>
             </TouchableOpacity>
           ))}
@@ -255,7 +279,10 @@ const DoctorDashboard = () => {
               <Text style={styles.schedulePatient}>{appointment.patient}</Text>
               <Text style={styles.scheduleType}>{appointment.type}</Text>
             </View>
-            <TouchableOpacity style={styles.scheduleAction}>
+            <TouchableOpacity 
+              style={styles.scheduleAction}
+              onPress={() => startVideoCall({ name: appointment.patient, type: appointment.type })}
+            >
               <Ionicons name="videocam" size={20} color="#4ECDC4" />
             </TouchableOpacity>
           </View>
@@ -338,7 +365,13 @@ const DoctorDashboard = () => {
                   <TouchableOpacity style={styles.actionButton}>
                     <Ionicons name="call" size={16} color="#4ECDC4" />
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.actionButton}>
+                  <TouchableOpacity 
+                    style={styles.actionButton}
+                    onPress={() => {
+                      closeModal();
+                      startVideoCall(item);
+                    }}
+                  >
                     <Ionicons name="videocam" size={16} color="#f093fb" />
                   </TouchableOpacity>
                 </View>
@@ -761,6 +794,19 @@ const styles = StyleSheet.create({
   appointmentType: {
     fontSize: 12,
     color: '#64748b',
+  },
+  appointmentActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  appointmentVideoButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#4ECDC420',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   appointmentTime: {
     alignItems: 'flex-end',

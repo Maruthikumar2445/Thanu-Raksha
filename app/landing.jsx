@@ -1,18 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  Dimensions,
-  SafeAreaView,
-  Platform,
-  Animated,
-  StatusBar,
-} from 'react-native';
-import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
+import { FontAwesome5, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import React, { useEffect, useRef } from 'react';
+import {
+  Animated,
+  Dimensions,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 let LinearGradient;
 try {
@@ -256,8 +256,8 @@ const styles = StyleSheet.create({
   // Fixed Header - No Overlap
   header: {
     backgroundColor: '#4F46E5',
-    paddingTop: Platform.OS === 'ios' ? 8 : 15,
-    paddingBottom: 12,
+    paddingTop: Platform.OS === 'ios' ? 44 : 32, // Increased for status bar
+    paddingBottom: 28, // Increased for larger header
     paddingHorizontal: 16,
     ...Platform.select({
       ios: {
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    height: 44, // Fixed height instead of minHeight
+    height: 64, // Increased height for more space
   },
   logoSection: {
     flexDirection: 'row',
